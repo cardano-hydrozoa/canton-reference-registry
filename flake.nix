@@ -71,6 +71,23 @@
           inherit system;
           sdkVersion = "3.4.11";
         };
+
+        # nix-daml-sdk's `daml` launcher hard-resets PATH (to openjdk/bash/
+        # coreutils only), so `daml studio` — which shells out to `code` — can't
+        # find VS Code no matter what's in the devShell. Re-expose the SDK with
+        # the `daml` launcher's baked-in PATH extended to include `code`, so
+        # `daml studio` installs the SDK-bundled (version-matched) extension and
+        # launches the editor.
+        damlSdkWithCode = pkgs.symlinkJoin {
+          name = "daml-sdk-with-code";
+          paths = [ damlSdk.sdk ];
+          postBuild = ''
+            rm -f $out/bin/daml
+            sed -E "s#(^export PATH='[^']*)'#\1:${pkgs.vscode}/bin'#" \
+              ${damlSdk.sdk}/bin/daml > $out/bin/daml
+            chmod +x $out/bin/daml
+          '';
+        };
       in
       {
         devShells.default = pkgs.mkShell {
@@ -79,7 +96,7 @@
           buildInputs = [ pkgs.bashInteractive ];
           packages = with pkgs; [
             canton # Digital Asset Canton runtime (nodes + console)
-            damlSdk.sdk # Daml SDK 3.4.11 — the `daml` assistant/compiler
+            damlSdkWithCode # Daml SDK 3.4.11 (`daml`), PATH-patched so `daml studio` finds `code`
             damlSdk.dpm # Daml Package Manager (`dpm`) — the 3.x replacement for `daml`
             cantonJdk # JDK 21 for ad-hoc `java`/console interop
             just # command runner, similar to `make`
