@@ -1,0 +1,39 @@
+module Main where
+
+import Daml.Script
+
+-- A trivial ownership token to exercise the core Daml loop: a template with
+-- signatory/observer, a consuming choice, and a Script test. `issuer` mints it,
+-- `owner` holds it, and a transfer needs both the current and the new owner to
+-- authorize (dual controller), since the new owner becomes a signatory.
+template Asset
+  with
+    issuer : Party
+    owner : Party
+    name : Text
+  where
+    signatory owner
+    observer issuer
+
+    choice Give : ContractId Asset
+      with
+        newOwner : Party
+      controller owner, newOwner
+      do create this with owner = newOwner
+
+-- Run with `just test` (or `daml test`). Alice mints an Asset, then transfers it
+-- to Bob; the query at the end returns Bob's active Assets.
+setup : Script [(ContractId Asset, Asset)]
+setup = do
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+
+  cid <- submit alice do
+    createCmd Asset with issuer = alice, owner = alice, name = "first-token"
+
+  -- Both parties sign: alice is the current owner (controller), bob becomes the
+  -- new owner and hence a signatory on the resulting contract.
+  _ <- submit (actAs [alice, bob]) do
+    exerciseCmd cid Give with newOwner = bob
+
+  query @Asset bob

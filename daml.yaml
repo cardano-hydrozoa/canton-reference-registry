@@ -1,0 +1,11 @@
+sdk-version: 3.4.11
+name: scratch
+version: 0.1.0
+source: daml
+dependencies:
+  - daml-prim
+  - daml-stdlib
+  - daml-script
+build-options:
+  # Daml-LF 2.1 is the target the Canton 3.5.15 runtime accepts.
+  - --target=2.1

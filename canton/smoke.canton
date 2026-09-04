@@ -1,0 +1,12 @@
+// Boot smoke test: start the local nodes, bootstrap the synchronizer, connect
+// the participant, upload the scratch DAR, and exit non-interactively. Confirms
+// Canton runs here and the DAR loads before you drive it from the console.
+nodes.local.start()
+bootstrap.synchronizer_local()
+
+participant1.synchronizers.connect_local(sequencer1, alias = "da")
+utils.retry_until_true { participant1.synchronizers.active("da") }
+
+participant1.dars.upload(".daml/dist/scratch-0.1.0.dar")
+println(">>> SMOKE OK: canton up, dar uploaded")
+sys.exit(0)

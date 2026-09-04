@@ -1,0 +1,12 @@
+# Daml build output
+.daml/
+
+# Canton runtime logs
+log/
+
+# Nix / direnv
+result
+.direnv/
+
+# Local direnv overrides
+.envrc.local
