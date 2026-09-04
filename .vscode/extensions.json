@@ -1,0 +1,11 @@
+{
+  // Recommended when you open this folder (Extensions view → "@recommended").
+  "recommendations": [
+    // Loads this repo's flake devShell (via .envrc) into VS Code, so daml,
+    // canton, git, and the language server resolve. The idiomatic Nix way to
+    // give VS Code the right PATH — see README "IDE".
+    "mkhl.direnv",
+    // Daml Studio: syntax, type-on-hover, and the inline "Script results" lens.
+    "digitalassetholdingsllc.daml"
+  ]
+}

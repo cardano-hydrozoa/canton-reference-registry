@@ -26,6 +26,12 @@ smoke: build
 console: build
   canton -c {{conf}}
 
+# Open the project in VS Code with the full devShell env (git, daml, canton).
+# Launching from the activated shell is what makes those tools resolve inside
+# VS Code — see README "IDE". (`daml studio` strips PATH; don't use it to launch.)
+code:
+  code .
+
 # Remove Daml build artifacts.
 clean:
   daml clean

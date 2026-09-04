@@ -13,7 +13,7 @@ The Nix flake pins:
   [obsidiansystems/nix-daml-sdk](https://github.com/obsidiansystems/nix-daml-sdk).
 - **Canton 3.5.15** open-source runtime (sequencer + mediator + participant +
   console), fetched from the Digital Asset release.
-- **VS Code** (`code`), so `daml studio` can install the Daml Studio extension.
+- **VS Code** (`code`), for the Daml extension (see [IDE](#ide--vs-code-daml-studio)).
 
 The compiler and runtime versions differ deliberately: SDK 3.4.11 targets
 Daml-LF **2.1**, which the Canton 3.5.15 runtime accepts (Canton checks LF
@@ -51,23 +51,36 @@ just build   # daml build → .daml/dist/scratch-0.1.0.dar
 just test    # daml test — runs the Script(s) in daml/
 ```
 
-## IDE — Daml Studio (VS Code)
+## IDE — VS Code (Daml Studio)
 
-From inside the dev shell:
+VS Code (`code`) is provided by the flake, so no separate install is needed. The
+**Daml** extension gives you syntax highlighting, type-on-hover, and the inline
+**Script results** lens — click "Script results" above a `Script` value to run it
+and inspect the ledger. `.vscode/extensions.json` recommends it (and the direnv
+extension); accept the prompt, or install via Extensions → `@recommended`.
+
+The one thing that matters: **VS Code must inherit the flake's devShell
+environment**, or it won't find `daml`/`canton`/`git`. Two idiomatic ways:
 
 ```bash
-daml studio
+just code            # = `code .` from inside the dev shell — inherits its PATH
+# or
+nix develop -c code .   # launch straight from the flake, from anywhere
 ```
 
-This launches VS Code and, on first run, installs the **Daml Studio** extension
-that ships with the SDK (so its version matches the compiler). The extension
-gives you syntax highlighting, type-on-hover, jump-to-definition, and the
-**Script results** code lens — click "Script results" above a `Script` value to
-run it inline and inspect the resulting ledger. `code` is provided by the flake,
-so no separate VS Code install is needed.
+Or, with [direnv](https://direnv.net/), `direnv allow` once and install the
+**direnv** VS Code extension (`mkhl.direnv`); it loads `.envrc` (`use flake .`)
+into the editor automatically, keeping the environment fresh as the flake
+changes. This is the [recommended Nix + VS Code setup](https://nixos.asia/en/vscode).
 
-> On a headless machine there's no GUI to open; use `daml studio` from a desktop
-> checkout. The core `just build` / `just test` loop needs no IDE.
+> **Don't use `daml studio` to launch the editor.** nix-daml-sdk's `daml`
+> launcher resets `PATH`, so `daml studio` opens VS Code with no `git`, `direnv`,
+> or `daml` on PATH. This flake patches the launcher to append the caller's PATH,
+> so `daml studio` *from inside the dev shell* now works — but `just code` /
+> direnv are the robust path.
+>
+> On a headless machine there's no GUI to open; the `just build` / `just test`
+> loop needs no IDE.
 
 ## Running on a real ledger (Canton)
 
