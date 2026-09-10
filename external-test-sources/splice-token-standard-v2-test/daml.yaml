@@ -1,0 +1,48 @@
+sdk-version: 3.5.2
+name: splice-token-standard-v2-test
+description: |
+  Vendored test infrastructure for the Canton Network Token Standard V2 (CIP-0112).
+
+  Copied verbatim from hyperledger-labs/splice @ tag 0.6.11
+  (token-standard/splice-token-standard-v2-test) per that package's own
+  instruction: it must be consumed by copying the source into the downstream
+  project, since Daml Script code cannot be shared via .dar across SDKs.
+
+  The data-dependency DARs below were built from the same splice tag and live in
+  ../../dars/vendored/ (see that dir's README for provenance/build steps).
+
+  Worked iterated-settlement example: daml/Splice/Tests/TestIteratedSettlement.daml
+version: 1.0.0
+source: daml
+dependencies:
+  - daml-prim
+  - daml-stdlib
+  - daml-script
+data-dependencies:
+  - ../../dars/vendored/splice-api-token-metadata-v1-1.0.0.dar
+  - ../../dars/vendored/splice-api-token-holding-v1-1.0.0.dar
+  - ../../dars/vendored/splice-api-token-transfer-instruction-v1-1.0.0.dar
+  - ../../dars/vendored/splice-api-token-allocation-request-v1-1.0.0.dar
+  - ../../dars/vendored/splice-api-token-allocation-v1-1.0.0.dar
+  - ../../dars/vendored/splice-api-token-allocation-instruction-v1-1.0.0.dar
+  - ../../dars/vendored/splice-api-token-holding-v2-1.0.0.dar
+  - ../../dars/vendored/splice-api-token-transfer-events-v2-1.0.0.dar
+  - ../../dars/vendored/splice-api-token-transfer-instruction-v2-1.0.0.dar
+  - ../../dars/vendored/splice-api-token-allocation-v2-1.0.0.dar
+  - ../../dars/vendored/splice-api-token-allocation-request-v2-1.0.0.dar
+  - ../../dars/vendored/splice-api-token-allocation-instruction-v2-1.0.0.dar
+  - ../../dars/vendored/splice-token-standard-utils-2.0.0.dar
+  - ../../dars/vendored/splice-util-token-standard-wallet-1.1.0.dar
+  - ../../dars/vendored/splice-util-0.1.7.dar
+  - ../../dars/vendored/splice-amulet-0.1.21.dar
+  - ../../dars/vendored/splice-token-standard-v1-test-1.0.15.dar
+  - ../../dars/vendored/splice-token-test-trading-app-1.0.2.dar
+  - ../../dars/vendored/splice-token-test-trading-app-v2-1.0.0.dar
+  - ../../dars/vendored/splice-test-token-v1-1.0.0.dar
+  - ../../dars/vendored/splice-test-token-v2-1.0.0.dar
+build-options:
+  - --target=2.1
+  - --ghc-option=-Wunused-binds
+  - --ghc-option=-Wunused-matches
+  # test-only code, not intended to be uploaded to a ledger
+  - -Wno-template-interface-depends-on-daml-script

@@ -47,3 +47,27 @@ The resulting `.daml/dist/<pkg>-<version>.dar` files were copied here.
 
 The V1 packages are included because `splice-token-standard-utils` (and the V2
 compatibility rules) depend on both major versions.
+
+## Harness DARs (for the vendored iterated-settlement test)
+
+These back `../../external-test-sources/splice-token-standard-v2-test/` — the real
+splice `splice-token-standard-v2-test` package (whose source is vendored there, per
+its own "copy the source into the downstream project" instruction). All built from
+the same splice `0.6.11` tree.
+
+| Package | Ver | Notes |
+|---|---|---|
+| splice-util | 0.1.7 | shared Daml utilities |
+| splice-amulet | 0.1.21 | Amulet (Canton Coin) registry — implements the token-standard interfaces |
+| splice-util-token-standard-wallet | 1.1.0 | wallet-side helpers incl. V2 batching |
+| splice-token-standard-v1-test | 1.0.15 | V1 test harness (dep of the V2 harness) |
+| splice-test-token-v1 / -v2 | 1.0.0 | reference `TestToken` registry implementations |
+| splice-token-test-trading-app | 1.0.2 | OTC/DvP trading app (V1) |
+| splice-token-test-trading-app-v2 | 1.0.0 | OTC/DvP trading app (V2) |
+
+> Build note: `daml/dars/` in the splice tree ships prebuilt API DARs whose
+> package-ids differ from a fresh local build. To avoid "same unit id, conflicting
+> package id" errors, the whole set here was built together from source with the
+> freshly-built API DARs used consistently everywhere.
+
+Run the worked example with `just ts-iterated` (see the repo justfile).

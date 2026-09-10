@@ -37,3 +37,24 @@ code:
 # Remove Daml build artifacts.
 clean:
   dpm clean
+
+# --- Token Standard V2 (CIP-0112) vendored test harness -----------------------
+# The real splice test package (splice-token-standard-v2-test), vendored under
+# external-test-sources/ with its DARs in dars/vendored/. See its daml.yaml.
+
+ts-dir := "external-test-sources/splice-token-standard-v2-test"
+
+# Build the vendored token-standard V2 test package.
+ts-build:
+  cd {{ts-dir}} && dpm build
+
+# Run the worked iterated-settlement scripts (TestIteratedSettlement.daml):
+#   *_test_locked_funds          — prefunded billing loop (no total declared up front)
+#   *_test_refresh_and_withdrawal — committed allocation, refresh, deadline withdrawal
+# against both the Amulet and TestTokenV2 registries.
+ts-iterated: ts-build
+  cd {{ts-dir}} && dpm test --files daml/Splice/Tests/TestIteratedSettlement.daml
+
+# Run the entire vendored v2-test suite (slower; exercises the full harness).
+ts-test: ts-build
+  cd {{ts-dir}} && dpm test
