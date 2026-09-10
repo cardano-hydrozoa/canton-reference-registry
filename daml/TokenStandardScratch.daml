@@ -1,0 +1,30 @@
+-- Scratch module for exploring the Canton Network Token Standard V2 (CIP-0112).
+-- The splice-api-token-*-v2 packages (and the V1 packages they build on) are
+-- wired in as data-dependencies in daml.yaml, built from splice @ 0.6.11.
+--
+-- This file just proves the V2 API is in scope; extend it to experiment.
+module TokenStandardScratch where
+
+import Splice.Api.Token.HoldingV2
+import Splice.Api.Token.MetadataV1 (emptyMetadata)
+
+-- Build an instrument id administered by `registry`.
+mkInstrumentId : Party -> Text -> InstrumentId
+mkInstrumentId registry ident = InstrumentId with admin = registry, id = ident
+
+-- A regular (owner-held, no provider) account with the default account id.
+mkOwnerAccount : Party -> Account
+mkOwnerAccount owner = Account with
+  owner = Some owner
+  provider = None
+  id = ""
+
+-- Assemble the view a `Holding` implementation would expose: `owner` holds
+-- `amount` units of instrument `ident` issued by `registry`, unlocked.
+sampleHoldingView : Party -> Party -> Text -> Decimal -> HoldingView
+sampleHoldingView registry owner ident amount = HoldingView with
+  account = mkOwnerAccount owner
+  instrumentId = mkInstrumentId registry ident
+  amount
+  lock = None
+  meta = emptyMetadata

@@ -9,22 +9,30 @@ the rest of that project along.
 
 The Nix flake pins:
 
-- **Daml SDK 3.4.11** (`daml` assistant/compiler + `dpm`), via
-  [obsidiansystems/nix-daml-sdk](https://github.com/obsidiansystems/nix-daml-sdk).
+- **Daml SDK 3.5.2** via **DPM** (the Daml Package Manager — the 3.x replacement
+  for the legacy `daml` assistant), installed from `get.digitalasset.com` by a
+  plain nix derivation (`nix/dpm.nix`). `dpm` provides the compiler and the IDE
+  language server. This mirrors the official [cn-quickstart](https://github.com/digital-asset/cn-quickstart)
+  toolchain setup (`nix/{dpm,overlays,shell}.nix`).
 - **Canton 3.5.15** open-source runtime (sequencer + mediator + participant +
-  console), fetched from the Digital Asset release.
+  console), fetched from the Digital Asset release (`nix/canton.nix`).
 - **VS Code** (`code`), for the Daml extension (see [IDE](#ide--vs-code-daml-studio)).
 
-The compiler and runtime versions differ deliberately: SDK 3.4.11 targets
-Daml-LF **2.1**, which the Canton 3.5.15 runtime accepts (Canton checks LF
-compatibility, not an exact SDK match). Hence `daml.yaml` builds with
-`--target=2.1`.
+Compiler and runtime versions differ deliberately: the SDK targets Daml-LF
+**2.1**, which the Canton 3.5.15 runtime accepts (Canton checks LF compatibility,
+not an exact SDK match). Hence `daml.yaml` builds with `--target=2.1`.
+
+> Earlier revisions used [obsidiansystems/nix-daml-sdk](https://github.com/obsidiansystems/nix-daml-sdk),
+> which tops out at SDK 3.4.11. We moved to DPM to get **3.5.2**, which is needed
+> for the Canton Network **Token Standard V2 (CIP-0112)** packages vendored under
+> `dars/vendored/` (see that dir's README) and wired into `daml.yaml` as
+> `data-dependencies`.
 
 ## Getting a shell
 
 ```bash
 cd daml-scratch
-nix develop          # puts daml, dpm, canton, just on PATH
+nix develop          # puts dpm, canton, just on PATH
 ```
 
 Or, with [direnv](https://direnv.net/) installed, `direnv allow` and the `.envrc`
@@ -36,9 +44,12 @@ loads the flake automatically on `cd`.
 |---|---|
 | `daml.yaml` | package manifest (SDK version, deps, LF target) |
 | `daml/Main.daml` | a minimal `Asset` template + a Daml Script test — the starting point |
+| `daml/TokenStandardScratch.daml` | example exercising the Token Standard V2 (CIP-0112) API |
+| `dars/vendored/` | vendored token-standard DARs (V1 + V2) + provenance README |
 | `canton/topology.conf` | local single-process Canton (1 synchronizer + 1 participant, in-memory) |
 | `canton/smoke.canton` | boot Canton, connect, upload the DAR |
 | `justfile` | task recipes |
+| `nix/` | `dpm.nix`, `canton.nix`, `overlays.nix`, `shell.nix` (cn-quickstart style) |
 | `flake.nix` / `flake.lock` | the pinned toolchain |
 
 ## The core loop
@@ -47,8 +58,8 @@ Daml Script runs in an in-memory ledger — no Canton needed — so the tightest
 feedback loop is just build + test:
 
 ```bash
-just build   # daml build → .daml/dist/scratch-0.1.0.dar
-just test    # daml test — runs the Script(s) in daml/
+just build   # dpm build → .daml/dist/scratch-0.1.0.dar
+just test    # dpm test — runs the Script(s) in daml/
 ```
 
 ## IDE — VS Code (Daml Studio)
@@ -59,8 +70,13 @@ VS Code (`code`) is provided by the flake, so no separate install is needed. The
 and inspect the ledger. `.vscode/extensions.json` recommends it (and the direnv
 extension); accept the prompt, or install via Extensions → `@recommended`.
 
+The extension is configured to run its language server via **DPM** (SDK 3.5.2) —
+`.vscode/settings.json` sets `"daml.useDPMWhenAvailable": true` — so type-on-hover
+and autocomplete on the token-standard V2 modules work against the same compiler
+that `dpm build` uses.
+
 The one thing that matters: **VS Code must inherit the flake's devShell
-environment**, or it won't find `daml`/`canton`/`git`. Two idiomatic ways:
+environment**, or it won't find `dpm`/`canton`/`git`. Two idiomatic ways:
 
 ```bash
 just code            # = `code .` from inside the dev shell — inherits its PATH
@@ -73,11 +89,9 @@ Or, with [direnv](https://direnv.net/), `direnv allow` once and install the
 into the editor automatically, keeping the environment fresh as the flake
 changes. This is the [recommended Nix + VS Code setup](https://nixos.asia/en/vscode).
 
-> **Don't use `daml studio` to launch the editor.** nix-daml-sdk's `daml`
-> launcher resets `PATH`, so `daml studio` opens VS Code with no `git`, `direnv`,
-> or `daml` on PATH. This flake patches the launcher to append the caller's PATH,
-> so `daml studio` *from inside the dev shell* now works — but `just code` /
-> direnv are the robust path.
+> `dpm studio` also installs the SDK's Daml extension into VS Code and launches
+> it, but `just code` / direnv are the robust path since they guarantee the
+> editor inherits the full devShell PATH.
 >
 > On a headless machine there's no GUI to open; the `just build` / `just test`
 > loop needs no IDE.

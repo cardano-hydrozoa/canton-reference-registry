@@ -1,8 +1,9 @@
 #!/usr/bin/env just --justfile
 #
 # daml-scratch recipes. Run inside the dev shell (`nix develop`, or direnv via
-# `.envrc`), which puts `daml`, `dpm`, `canton`, and `just` on PATH. `just` runs
-# these from this directory, so all paths are relative to the repo root.
+# `.envrc`), which puts `dpm`, `canton`, and `just` on PATH. `just` runs these
+# from this directory, so all paths are relative to the repo root. The Daml
+# toolchain is DPM (SDK 3.5.2) — the 3.x replacement for the `daml` assistant.
 
 conf := "canton/topology.conf"
 
@@ -12,11 +13,11 @@ default:
 
 # Compile the package to a Daml-LF 2.1 DAR (.daml/dist/scratch-0.1.0.dar).
 build:
-  daml build
+  dpm build
 
 # Run the Daml Script tests in daml/ (in-memory script service, no Canton).
 test: build
-  daml test
+  dpm test
 
 # Boot local Canton, bootstrap the synchronizer, connect the participant, upload the DAR.
 smoke: build
@@ -26,12 +27,13 @@ smoke: build
 console: build
   canton -c {{conf}}
 
-# Open the project in VS Code with the full devShell env (git, daml, canton).
+# Open the project in VS Code with the full devShell env (git, dpm, canton).
 # Launching from the activated shell is what makes those tools resolve inside
-# VS Code — see README "IDE". (`daml studio` strips PATH; don't use it to launch.)
+# VS Code — see README "IDE". The Daml extension uses `dpm` as its language
+# server (.vscode/settings.json `daml.useDPMWhenAvailable`).
 code:
   code .
 
 # Remove Daml build artifacts.
 clean:
-  daml clean
+  dpm clean

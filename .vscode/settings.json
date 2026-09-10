@@ -2,5 +2,8 @@
     "files.readonlyInclude": {
         "**/.daml/unpacked-dars/**": true
     },
-    "daml.useDPMWhenAvailable": false
+    // This project's Daml toolchain is DPM (see nix/dpm.nix); have the Daml
+    // extension launch its language server via `dpm` (SDK 3.5.2) rather than the
+    // legacy `daml` assistant.
+    "daml.useDPMWhenAvailable": true
 }
