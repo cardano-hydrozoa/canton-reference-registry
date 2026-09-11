@@ -2,9 +2,14 @@ package treasury.it
 
 import scala.jdk.CollectionConverters.*
 
+import cats.effect.unsafe.implicits.global
+
+import com.daml.ledger.javaapi.data.ContractFilter
 import com.daml.ledger.rxjava.DamlLedgerClient
 
 import org.scalatest.funsuite.AnyFunSuite
+
+import daml.splice.testing.tokens.testtokenv2.TokenRules
 
 /** Phase 2 slice 1: prove the hard part — the cn-quickstart Canton image boots in Docker, uploads
   * our DARs, and is reachable over the gRPC Ledger API via the Java-bindings `DamlLedgerClient`.
@@ -51,5 +56,16 @@ class CantonSmokeSpec extends AnyFunSuite:
                 assert(parties.keySet == hints.toSet, s"missing parties: $parties")
                 assert(parties.values.toSet.size == hints.size, s"party ids not distinct: $parties")
                 hints.foreach(h => assert(parties(h).startsWith(h), s"party id for $h not namespaced: ${parties(h)}"))
+
+                // Submit + typed ACS read: create the registry's TokenRules as admin, read it back.
+                val ledger = LedgerClientCanton.connect("localhost", port)
+                try
+                    val admin = parties("adminTT2")
+                    val rules = (for
+                        _ <- ledger.createTokenRules(admin)
+                        rs <- ledger.activeContractsOf(ContractFilter.of(TokenRules.COMPANION), admin)
+                    yield rs).value.unsafeRunSync()
+                    assert(rules.exists(_.size == 1), s"expected exactly 1 TokenRules, got: $rules")
+                finally ledger.close()
             finally client.close()
         finally container.stop()
