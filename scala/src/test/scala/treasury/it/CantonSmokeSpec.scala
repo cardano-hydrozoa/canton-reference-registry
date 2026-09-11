@@ -44,5 +44,12 @@ class CantonSmokeSpec extends AnyFunSuite:
                   packageIds.nonEmpty,
                   "no packages found on the participant — DAR upload failed?"
                 )
+
+                // Party allocation over the admin gRPC service (rxjava has no party client).
+                val hints = List("alice", "bob", "hydrozoa", "adminTT2")
+                val parties = CantonParties.allocate("localhost", port, hints)
+                assert(parties.keySet == hints.toSet, s"missing parties: $parties")
+                assert(parties.values.toSet.size == hints.size, s"party ids not distinct: $parties")
+                hints.foreach(h => assert(parties(h).startsWith(h), s"party id for $h not namespaced: ${parties(h)}"))
             finally client.close()
         finally container.stop()
