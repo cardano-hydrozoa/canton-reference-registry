@@ -8,6 +8,10 @@ target/
 .metals/
 project/project/
 project/target/
+.coursier-cache/
+
+# IDE
+.idea/
 
 # Canton runtime logs
 log/
