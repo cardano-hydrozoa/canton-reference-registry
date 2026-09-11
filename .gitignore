@@ -1,6 +1,18 @@
 # Daml build output
 .daml/
 
+# Scala / sbt build output
+target/
+.bsp/
+.bloop/
+.metals/
+project/project/
+project/target/
+.coursier-cache/
+
+# IDE
+.idea/
+
 # Canton runtime logs
 log/
 
