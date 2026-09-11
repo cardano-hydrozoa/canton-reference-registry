@@ -2,7 +2,9 @@ module Splice.Tests.TestHydrozoaTreasury where
 
 import Daml.Script
 
+import DA.Action (unless)
 import DA.Assert
+import DA.Foldable (forA_)
 import DA.List (head)
 import DA.TextMap qualified as TextMap
 
@@ -35,6 +37,37 @@ data TestCase = TestCase with
 
 getAdmin : TestCase -> Party
 getAdmin tc = tc.env.testTokenV2.admin
+
+
+-- Balance assertions
+---------------------
+-- `WalletClientV2` ships `checkUnlockedBalance` but no locked-balance equivalent,
+-- so we add one here (mirroring it via the exported `listLockedHoldings`), then a
+-- combined helper that checks a party's unlocked and locked balances across several
+-- instruments in one call.
+
+-- | Assert a party's total *locked* balance of an instrument (mirror of
+-- `WalletClientV2.checkUnlockedBalance`).
+checkLockedBalance : Party -> V2.InstrumentId -> Decimal -> Script ()
+checkLockedBalance p instrumentId balance = do
+  holdings <- WalletClientV2.listLockedHoldings p instrumentId
+  let total = sum $ map (\(_, h) -> h.amount) holdings
+  unless (total == balance) $ fail $
+    "Wallet " <> show p <> ": locked balance of " <> show total <> " for " <>
+    show instrumentId <> " does not match the expected balance of " <> show balance <>
+    "\nLocked holdings: " <> show holdings
+
+-- | Assert all of a party's balances at once: `unlocked` and `locked` are each a
+-- list of (instrument, expected total) pairs. An instrument omitted from a list is
+-- not checked; list it with `0.0` to assert it is empty.
+checkBalances
+  :  Party
+  -> [(V2.InstrumentId, Decimal)]   -- ^ expected unlocked balances
+  -> [(V2.InstrumentId, Decimal)]   -- ^ expected locked balances
+  -> Script ()
+checkBalances p unlocked locked = do
+  forA_ unlocked $ \(instrumentId, amount) -> WalletClientV2.checkUnlockedBalance p instrumentId amount
+  forA_ locked   $ \(instrumentId, amount) -> checkLockedBalance p instrumentId amount
 
 
 -- Cribbed from TestIteratedSettlement.daml
@@ -91,12 +124,12 @@ hydrozoaTreasuryFlow tc =
       meta = emptyMetadata
 
     mkLeg : Text -> V2.Account -> V2.Account -> Text -> V2.TransferLeg
-    mkLeg legId sender receiver instrId = V2.TransferLeg with
-      transferLegId = legId
+    mkLeg transferLegId sender receiver instrumentId = V2.TransferLeg with
+      transferLegId 
       sender
       receiver
       amount = 100.0
-      instrumentId = instrId
+      instrumentId
       meta = emptyMetadata
 
     -- deposit legs (into the treasury) and payout legs (out of it, swapped)
@@ -136,6 +169,13 @@ hydrozoaTreasuryFlow tc =
         createAlloc : Party -> V2.AllocationSpecification -> [ContractId V2.Holding]
                    -> Script (ContractId V2.Allocation)
         createAlloc authorizer spec inputs = do
+
+          -- NOTE (From Peter)
+          -- Each registry implements the CIP-0112 AllocationFactory interface on an 
+          -- on-ledger contract (here the TokenRules contract), exposing AllocationFactory_Allocate 
+          -- as a non-consuming choice. getAllocationFactory is the off-ledger helper that locates
+          -- that contract and assembles the choice context; exercising the choice yields a contract 
+          -- implementing the Allocation interface.
           ec <- V2.getAllocationFactory tc.registry V2.AllocationFactory_Allocate with
             settlement
             allocation = spec
@@ -143,32 +183,63 @@ hydrozoaTreasuryFlow tc =
             inputHoldingCids = inputs
             actors = [authorizer]
             extraArgs = emptyExtraArgs
+
+          -- NOTE (From Peter)
+          -- The factory contract (TokenRules) and the supporting AccountConfig/holding contracts are
+          -- owned by the registry admin, so they aren't visible to the submitting authorizer. 
+          -- discloseMany' explicitly shares them into the transaction so the authorizer can exercise 
+          -- the choice.
           res <- WalletClientV2.submitAndCheckTxHistory [admin]
             (actAs authorizer <> discloseMany' ec.disclosures) $
             exerciseCmd ec.factoryCid ec.arg
+
           let V2.AllocationInstructionResult_Completed cid = res.output
           pure cid
 
+        -- NOTE (From Peter)
+        -- A settlement batch pairs transfer legs (what should move) with the finalized
+        -- allocations that back them (which authorized the move and locked the funds),
+        -- and executes all legs atomically. The registry's SettlementFactory implementation
+        -- runs the validation; it can add registry-specific rules, but the standard requires
+        -- it to check (a) the executors authorized the batch and each leg is backed by an
+        -- allocation whose authorizer consented, and (b) value is conserved — payouts are
+        -- covered by the holdings the allocations locked.
         settleBatch : [V2.TransferLeg] -> [V2.FinalizedAllocation]
                    -> Script V2.SettlementFactory_SettleBatchResult
         settleBatch legs allocs = do
           ec <- V2.getSettlementFactory tc.registry V2.SettlementFactory_SettleBatch with
             actors = [tc.hydrozoa]        -- the executor settles; must equal settlement.executors
-            settlement
-            transferLegs = legs
-            allocations = allocs
+            settlement -- executors + batchId
+            transferLegs = legs -- WHAT should move
+            allocations = allocs -- WHAT AUTHORIZES & FUNDS each move
             extraArgs = emptyExtraArgs
           WalletClientV2.submitAndCheckTxHistory [admin]
             (actAs tc.hydrozoa <> discloseMany' ec.disclosures) $
             exerciseCmd ec.factoryCid ec.arg
 
+      -- Balance checkpoints trace the quantities through the flow. Each `checkBalances`
+      -- call takes the party, then the expected (instrument, total) pairs for its
+      -- *unlocked* holdings and then its *locked* holdings.
+
       -- 1. deposits ----------------------------------------------------------
       aliceInputs <- concat <$> forA tc.instrIds (WalletClientV2.listHoldingCids tc.alice)
       bobInputs   <- concat <$> forA tc.instrIds (WalletClientV2.listHoldingCids tc.bob)
 
+      -- Preflight: only the minted balances exist; nothing is locked yet.
+      checkBalances tc.alice    [(xId, 1000.0), (yId,    0.0)] [(xId, 0.0), (yId, 0.0)]
+      checkBalances tc.bob      [(xId,    0.0), (yId, 1000.0)] [(xId, 0.0), (yId, 0.0)]
+      checkBalances tc.hydrozoa [(xId,    0.0), (yId,    0.0)] [(xId, 0.0), (yId, 0.0)]
+
       aliceDepositCid <- createAlloc tc.alice    aliceDepositAlloc aliceInputs
       bobDepositCid   <- createAlloc tc.bob      bobDepositAlloc   bobInputs
       treasuryCid0    <- createAlloc tc.hydrozoa treasuryAlloc     []
+
+      -- Post-allocation, pre-settle: each sender's 100 is now locked into its deposit
+      -- allocation (still owned by the sender). The treasury allocation holds no funds
+      -- yet, so hydrozoa is empty.
+      checkBalances tc.alice    [(xId, 900.0), (yId,   0.0)] [(xId, 100.0), (yId,   0.0)]
+      checkBalances tc.bob      [(xId,   0.0), (yId, 900.0)] [(xId,   0.0), (yId, 100.0)]
+      checkBalances tc.hydrozoa [(xId,   0.0), (yId,   0.0)] [(xId,   0.0), (yId,   0.0)]
 
       -- Operator settles: Alice's and Bob's funds move into the pooled treasury
       -- allocation, whose reserved funding rolls forward to hold them.
@@ -184,12 +255,26 @@ hydrozoaTreasuryFlow tc =
       let Some treasuryCid1 =
             WalletClientV2.extractNextIterationAllocationCid (head depositResult.allocationSettleResults)
 
+      -- Post-deposit-settle: the senders' locked funds have moved into the pooled
+      -- treasury allocation. They now sit as *locked* holdings owned by hydrozoa
+      -- (the allocation's reserved funding); the senders keep their unlocked remainders.
+      checkBalances tc.alice    [(xId, 900.0), (yId,   0.0)] [(xId,   0.0), (yId,   0.0)]
+      checkBalances tc.bob      [(xId,   0.0), (yId, 900.0)] [(xId,   0.0), (yId,   0.0)]
+      checkBalances tc.hydrozoa [(xId,   0.0), (yId,   0.0)] [(xId, 100.0), (yId, 100.0)]
+
       -- 2. L2 trade happens off-ledger: Alice and Bob swap X <-> Y -----------
 
       -- 3. withdrawal --------------------------------------------------------
       -- Each withdrawer signals intent by authorizing receipt of their payout.
       aliceReceiveCid <- createAlloc tc.alice aliceReceiveAlloc []
       bobReceiveCid   <- createAlloc tc.bob   bobReceiveAlloc   []
+
+      -- Post-receive-alloc, pre-final-settle: authorizing *receipt* locks nothing
+      -- (receiver-side allocations don't move funds), so balances are unchanged —
+      -- the pool still holds the deposits, locked under hydrozoa.
+      checkBalances tc.alice    [(xId, 900.0), (yId,   0.0)] [(xId,   0.0), (yId,   0.0)]
+      checkBalances tc.bob      [(xId,   0.0), (yId, 900.0)] [(xId,   0.0), (yId,   0.0)]
+      checkBalances tc.hydrozoa [(xId,   0.0), (yId,   0.0)] [(xId, 100.0), (yId, 100.0)]
 
       -- Operator pays out the swapped instruments and closes the pool
       -- (nextIterationFunding = None ends iteration).
@@ -203,10 +288,12 @@ hydrozoaTreasuryFlow tc =
         ]
 
       -- 4. assertions: the swap took effect and value is conserved -----------
-      WalletClientV2.checkUnlockedBalance tc.alice xId 900.0
-      WalletClientV2.checkUnlockedBalance tc.alice yId 100.0
-      WalletClientV2.checkUnlockedBalance tc.bob   yId 900.0
-      WalletClientV2.checkUnlockedBalance tc.bob   xId 100.0
+      -- Final: the pool is drained back to the parties, swapped. Alice traded 100 X
+      -- for 100 Y and Bob the reverse; totals per party are conserved and nothing
+      -- remains locked (the treasury is closed).
+      checkBalances tc.alice    [(xId, 900.0), (yId, 100.0)] [(xId, 0.0), (yId, 0.0)]
+      checkBalances tc.bob      [(xId, 100.0), (yId, 900.0)] [(xId, 0.0), (yId, 0.0)]
+      checkBalances tc.hydrozoa [(xId,   0.0), (yId,   0.0)] [(xId, 0.0), (yId, 0.0)]
 
       -- the treasury pool is closed
       remainingTreasuryAllocs <- queryInterface @V2.Allocation tc.hydrozoa
