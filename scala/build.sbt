@@ -56,6 +56,9 @@ lazy val root = (project in file("."))
       "splice-api-token-allocation-instruction-v2-1.0.0.dar",
       "splice-api-token-transfer-instruction-v2-1.0.0.dar",
       "splice-token-standard-utils-2.0.0.dar",
+      // The TestTokenV2 registry implementation (TokenRules, AccountConfig, …) — the on-ledger
+      // contracts RegistryBackendLocal assembles choice contexts from and the harness deploys.
+      "splice-test-token-v2-1.0.0.dar",
     ),
     Compile / sourceGenerators += Def.uncached(Def.task {
       val log = streams.value.log
