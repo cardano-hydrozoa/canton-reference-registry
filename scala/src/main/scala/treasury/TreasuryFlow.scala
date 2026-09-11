@@ -52,29 +52,29 @@ final class TreasuryFlow[F[_]: Monad](reg: RegistryBackend[F], ledger: LedgerCli
         // deposit legs (into the treasury) and payout legs (out of it, swapped)
         val aliceDepositLeg = transferLeg(
           "alice-deposit",
-          basicAccount(env.alice),
-          basicAccount(env.hydrozoa),
+          env.alice.basicAccount,
+          env.hydrozoa.basicAccount,
           BigDecimal(100),
           "X"
         )
         val bobDepositLeg = transferLeg(
           "bob-deposit",
-          basicAccount(env.bob),
-          basicAccount(env.hydrozoa),
+          env.bob.basicAccount,
+          env.hydrozoa.basicAccount,
           BigDecimal(100),
           "Y"
         )
         val alicePayoutLeg = transferLeg(
           "alice-payout",
-          basicAccount(env.hydrozoa),
-          basicAccount(env.alice),
+          env.hydrozoa.basicAccount,
+          env.alice.basicAccount,
           BigDecimal(100),
           "Y"
         )
         val bobPayoutLeg = transferLeg(
           "bob-payout",
-          basicAccount(env.hydrozoa),
-          basicAccount(env.bob),
+          env.hydrozoa.basicAccount,
+          env.bob.basicAccount,
           BigDecimal(100),
           "X"
         )
@@ -82,28 +82,28 @@ final class TreasuryFlow[F[_]: Monad](reg: RegistryBackend[F], ledger: LedgerCli
         // single-shot allocations: authorize (and, for senders, lock) one side each
         val aliceDepositAlloc = allocationSpec(
           admin,
-          basicAccount(env.alice),
+          env.alice.basicAccount,
           List(senderSide(aliceDepositLeg)),
           committed = false,
           None
         )
         val bobDepositAlloc = allocationSpec(
           admin,
-          basicAccount(env.bob),
+          env.bob.basicAccount,
           List(senderSide(bobDepositLeg)),
           committed = false,
           None
         )
         val aliceReceiveAlloc = allocationSpec(
           admin,
-          basicAccount(env.alice),
+          env.alice.basicAccount,
           List(receiverSide(alicePayoutLeg)),
           committed = false,
           None
         )
         val bobReceiveAlloc = allocationSpec(
           admin,
-          basicAccount(env.bob),
+          env.bob.basicAccount,
           List(receiverSide(bobPayoutLeg)),
           committed = false,
           None
@@ -113,7 +113,7 @@ final class TreasuryFlow[F[_]: Monad](reg: RegistryBackend[F], ledger: LedgerCli
         // finalizes concrete legs at settlement time.
         val treasuryAlloc = allocationSpec(
           admin,
-          basicAccount(env.hydrozoa),
+          env.hydrozoa.basicAccount,
           Nil,
           committed = true,
           Some(Map.empty)

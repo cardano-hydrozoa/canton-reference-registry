@@ -32,9 +32,10 @@ object TokenStandardHelpers:
     def emptyChoiceContext: ChoiceContext = new ChoiceContext(Map.empty[String, AnyValue].asJava)
     def emptyExtraArgs: ExtraArgs = new ExtraArgs(emptyChoiceContext, emptyMetadata)
 
-    /** Account with only an owner set (Daml's `basicAccount`). */
-    def basicAccount(owner: PartyId): Account =
-        new Account(Optional.of(owner), Optional.empty(), "")
+    extension (party: PartyId)
+        /** Account with only an owner set (Daml's `basicAccount`). */
+        def basicAccount: Account =
+            new Account(Optional.of(party), Optional.empty(), "")
 
     def instrumentId(admin: PartyId, id: String): InstrumentId = new InstrumentId(admin, id)
 
