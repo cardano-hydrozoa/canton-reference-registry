@@ -1,7 +1,6 @@
 package treasury
 
-import cats.Monad
-import cats.data.EitherT
+import cats.MonadError
 import cats.syntax.all.*
 import daml.splice.api.token.allocationv2.Allocation
 import daml.splice.api.token.allocationv2.AllocationSpecification
@@ -36,13 +35,15 @@ final case class TreasuryEnv(
   * inline as assertions, so running this flow — here against the in-memory ledger, later against a
   * Canton localnet — verifies the same invariants at each step.
   */
-final class TreasuryFlow[F[_]: Monad](reg: RegistryBackend[F], ledger: LedgerClient[F]):
+final class TreasuryFlow[F[_]](reg: RegistryBackend[F], ledger: LedgerClient[F])(using
+    F: MonadError[F, Error]
+):
     import TokenStandardHelpers.*
 
     /** Precondition: the ledger already holds Alice's 1000 X and Bob's 1000 Y (minting is a
       * registry-admin concern, done during test/localnet setup).
       */
-    def run(env: TreasuryEnv, now: Instant): F[Either[Error, Unit]] =
+    def run(env: TreasuryEnv, now: Instant): F[Unit] =
         val admin = env.admin
         val xId = instrumentId(admin, "X")
         val yId = instrumentId(admin, "Y")
@@ -119,7 +120,7 @@ final class TreasuryFlow[F[_]: Monad](reg: RegistryBackend[F], ledger: LedgerCli
           Some(Map.empty)
         )
 
-        val program: EitherT[F, Error, Unit] =
+        val program: F[Unit] =
             for
                 // 1. deposits ----------------------------------------------------------
                 aliceInputs <- inputsAcross(env.alice, List(xId, yId))
@@ -167,7 +168,7 @@ final class TreasuryFlow[F[_]: Monad](reg: RegistryBackend[F], ledger: LedgerCli
                   ),
                   settlement,
                 )
-                treasuryCid1 <- EitherT.fromOption[F](
+                treasuryCid1 <- F.fromOption(
                   depositResult.nextIterationAllocations.headOption.flatten,
                   Error.Unexpected("deposit settle returned no next-iteration treasury allocation"),
                 )
@@ -225,15 +226,18 @@ final class TreasuryFlow[F[_]: Monad](reg: RegistryBackend[F], ledger: LedgerCli
                 _ <- checkBalances(env.hydrozoa, List(xId -> 0, yId -> 0), List(xId -> 0, yId -> 0))
 
                 // the treasury pool is closed
-                remaining <- EitherT(ledger.activeAllocations(env.hydrozoa))
-                _ <- EitherT.cond[F](
-                  remaining.isEmpty,
-                  (),
-                  Error.Unexpected(s"treasury not closed: ${remaining.size} allocation(s) remain"),
-                )
+                remaining <- ledger.activeAllocations(env.hydrozoa)
+                _ <-
+                    if remaining.isEmpty then F.unit
+                    else
+                        F.raiseError[Unit](
+                          Error.Unexpected(
+                            s"treasury not closed: ${remaining.size} allocation(s) remain"
+                          )
+                        )
             yield ()
 
-        program.value
+        program
 
     // --- helpers ---------------------------------------------------------------
 
@@ -243,22 +247,20 @@ final class TreasuryFlow[F[_]: Monad](reg: RegistryBackend[F], ledger: LedgerCli
         inputs: List[Holding.ContractId],
         settlement: SettlementInfo,
         now: Instant,
-    ): EitherT[F, Error, Allocation.ContractId] =
+    ): F[Allocation.ContractId] =
         for
             // The registry locates the factory contract and assembles the choice context +
             // disclosures; exercising the returned bundle yields the Allocation.
-            bundle <- EitherT(
-              reg.getAllocationFactory(
-                TokenStandardHelpers.allocationFactoryAllocate(
-                  settlement,
-                  spec,
-                  now,
-                  inputs,
-                  List(authorizer)
-                )
+            bundle <- reg.getAllocationFactory(
+              TokenStandardHelpers.allocationFactoryAllocate(
+                settlement,
+                spec,
+                now,
+                inputs,
+                List(authorizer)
               )
             )
-            cid <- EitherT(ledger.exerciseAllocationFactory(authorizer, bundle))
+            cid <- ledger.exerciseAllocationFactory(authorizer, bundle)
         yield cid
 
     private def settleBatch(
@@ -266,26 +268,24 @@ final class TreasuryFlow[F[_]: Monad](reg: RegistryBackend[F], ledger: LedgerCli
         legs: List[TransferLeg],
         allocations: List[FinalizedAllocation],
         settlement: SettlementInfo,
-    ): EitherT[F, Error, SettleResult] =
+    ): F[SettleResult] =
         for
-            bundle <- EitherT(
-              reg.getSettlementFactory(
-                TokenStandardHelpers.settlementFactorySettleBatch(
-                  settlement,
-                  legs,
-                  allocations,
-                  List(executor)
-                )
+            bundle <- reg.getSettlementFactory(
+              TokenStandardHelpers.settlementFactorySettleBatch(
+                settlement,
+                legs,
+                allocations,
+                List(executor)
               )
             )
-            res <- EitherT(ledger.exerciseSettlementFactory(executor, bundle))
+            res <- ledger.exerciseSettlementFactory(executor, bundle)
         yield res
 
     private def inputsAcross(
         owner: PartyId,
         instruments: List[InstrumentId]
-    ): EitherT[F, Error, List[Holding.ContractId]] =
-        instruments.flatTraverse(inst => EitherT(ledger.listHoldingCids(owner, inst)))
+    ): F[List[Holding.ContractId]] =
+        instruments.flatTraverse(inst => ledger.listHoldingCids(owner, inst))
 
     /** Assert a party's unlocked and locked balances across several instruments (Daml's
       * `checkBalances`). An instrument's expected total is a plain number; `0` asserts empty.
@@ -294,15 +294,15 @@ final class TreasuryFlow[F[_]: Monad](reg: RegistryBackend[F], ledger: LedgerCli
         owner: PartyId,
         unlocked: List[(InstrumentId, Int)],
         locked: List[(InstrumentId, Int)],
-    ): EitherT[F, Error, Unit] =
+    ): F[Unit] =
         for
             _ <- unlocked.traverse_((inst, exp) =>
-                EitherT(ledger.unlockedBalance(owner, inst))
+                ledger
+                    .unlockedBalance(owner, inst)
                     .flatMap(assertEq(owner, inst, "unlocked", _, exp))
             )
             _ <- locked.traverse_((inst, exp) =>
-                EitherT(ledger.lockedBalance(owner, inst))
-                    .flatMap(assertEq(owner, inst, "locked", _, exp))
+                ledger.lockedBalance(owner, inst).flatMap(assertEq(owner, inst, "locked", _, exp))
             )
         yield ()
 
@@ -312,9 +312,9 @@ final class TreasuryFlow[F[_]: Monad](reg: RegistryBackend[F], ledger: LedgerCli
         kind: String,
         actual: BigDecimal,
         expected: Int
-    ): EitherT[F, Error, Unit] =
-        EitherT.cond[F](
-          actual == BigDecimal(expected),
-          (),
-          Error.Unexpected(s"$owner $kind ${inst.id}: expected $expected, got $actual"),
-        )
+    ): F[Unit] =
+        if actual == BigDecimal(expected) then F.unit
+        else
+            F.raiseError[Unit](
+              Error.Unexpected(s"$owner $kind ${inst.id}: expected $expected, got $actual")
+            )

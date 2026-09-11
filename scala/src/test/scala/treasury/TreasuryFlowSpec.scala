@@ -37,6 +37,8 @@ class TreasuryFlowSpec extends AnyFunSuite:
         val flow =
             new TreasuryFlow[LedgerM](new RegistryBackendStub[LedgerM](Tracer.noop), InMemoryLedger)
 
-        val (_, result) = flow.run(env, Instant.EPOCH).run(seed).value
+        // StateT over Either: run yields Either[Error, (finalState, result)]; a Left is a failed
+        // checkpoint.
+        val result = flow.run(env, Instant.EPOCH).run(seed)
 
-        assert(result == Right(()), s"treasury flow failed: $result")
+        assert(result.isRight, s"treasury flow failed: $result")

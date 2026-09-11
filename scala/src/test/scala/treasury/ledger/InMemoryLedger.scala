@@ -3,7 +3,7 @@ package treasury.ledger
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
 
-import cats.data.State
+import cats.data.StateT
 
 import treasury.PartyId
 import treasury.ledger.LedgerClient.SettleResult
@@ -53,13 +53,15 @@ object LedgerState:
     def seed(initial: List[(PartyId, InstrumentId, BigDecimal)]): LedgerState =
         initial.foldLeft(empty)((s, t) => s.adjust(t._1, t._2.id, t._3, BigDecimal(0)))
 
-/** Ledger effect: a pure state transition over [[LedgerState]]. */
-type LedgerM[A] = State[LedgerState, A]
+/** Ledger effect: a state transition over [[LedgerState]] with the error in the `Either` base, so a
+  * failed operation aborts with no state change (transactional). Mirrors `CardanoBackendMock`'s
+  * pure `State`, plus the error channel every `LedgerClient` method needs.
+  */
+type LedgerM[A] = StateT[[X] =>> Either[Error, X], LedgerState, A]
 
 /** In-memory stand-in for a Canton ledger + registry contracts, faithful enough to reproduce the
-  * balance transitions `TestHydrozoaTreasury` asserts. Pure: every operation is a `State`
-  * transition (mirrors `CardanoBackendMock`'s `State[MockState, *]`), so the flow runs
-  * deterministically with no runtime. It interprets the CIP-0112 codegen args the stub echoes back:
+  * balance transitions `TestHydrozoaTreasury` asserts. Pure and deterministic (no runtime). It
+  * interprets the CIP-0112 codegen args the stub echoes back:
   *
   *   - allocate: each SENDER-side leg locks its amount from the authorizer (unlocked → locked);
   *     receiver-side and empty (treasury) allocations lock nothing.
@@ -67,14 +69,17 @@ type LedgerM[A] = State[LedgerState, A]
   *     land *locked* iff the receiver authorizes an iterated (pool) allocation in the batch — that
   *     is what keeps deposits in the treasury — and *unlocked* otherwise (a payout to a party). An
   *     iterated finalized allocation rolls forward to a fresh allocation holding its funding.
+  *
+  * None of these operations fail in the treasury flow, so each returns `Right`; the `Either` base
+  * is there to satisfy the `MonadError` the flow's assertions raise into.
   */
 object InMemoryLedger extends LedgerClient[LedgerM]:
 
     def exerciseAllocationFactory(
         actAs: PartyId,
         bundle: EnrichedFactoryChoice[AllocationFactory_Allocate],
-    ): LedgerM[Either[Error, Allocation.ContractId]] =
-        State { s =>
+    ): LedgerM[Allocation.ContractId] =
+        StateT { s =>
             val spec = bundle.arg.allocation
             val authorizer = spec.authorizer.owner.toScala.getOrElse("")
             val sides = spec.transferLegSides.asScala.toList
@@ -97,14 +102,14 @@ object InMemoryLedger extends LedgerClient[LedgerM]:
               iterated = spec.nextIterationFunding.isPresent,
               closed = false
             )
-            (afterId.putAlloc(rec), Right(new Allocation.ContractId(id)))
+            Right((afterId.putAlloc(rec), new Allocation.ContractId(id)))
         }
 
     def exerciseSettlementFactory(
         actAs: PartyId,
         bundle: EnrichedFactoryChoice[SettlementFactory_SettleBatch],
-    ): LedgerM[Either[Error, SettleResult]] =
-        State { s =>
+    ): LedgerM[SettleResult] =
+        StateT { s =>
             val arg = bundle.arg
             val legs = arg.transferLegs.asScala.toList
             val finalized = arg.allocations.asScala.toList
@@ -149,41 +154,31 @@ object InMemoryLedger extends LedgerClient[LedgerM]:
                             case None =>
                                 (closed, acc :+ None)
                 }
-            (afterAllocs, Right(SettleResult(nexts)))
+            Right((afterAllocs, SettleResult(nexts)))
         }
 
-    def unlockedBalance(
-        owner: PartyId,
-        instrument: InstrumentId
-    ): LedgerM[Either[Error, BigDecimal]] =
-        State.inspect(s => Right(s.bal(owner, instrument.id).unlocked))
+    def unlockedBalance(owner: PartyId, instrument: InstrumentId): LedgerM[BigDecimal] =
+        StateT.inspect(_.bal(owner, instrument.id).unlocked)
 
-    def lockedBalance(
-        owner: PartyId,
-        instrument: InstrumentId
-    ): LedgerM[Either[Error, BigDecimal]] =
-        State.inspect(s => Right(s.bal(owner, instrument.id).locked))
+    def lockedBalance(owner: PartyId, instrument: InstrumentId): LedgerM[BigDecimal] =
+        StateT.inspect(_.bal(owner, instrument.id).locked)
 
     def listHoldingCids(
         owner: PartyId,
         instrument: InstrumentId
-    ): LedgerM[Either[Error, List[Holding.ContractId]]] =
-        State.inspect { s =>
+    ): LedgerM[List[Holding.ContractId]] =
+        StateT.inspect { s =>
             // One synthetic cid representing the party's unlocked holding of the instrument; the
             // flow feeds these back as inputs, which this fake locks by amount (not by cid).
-            val cids =
-                if s.bal(owner, instrument.id).unlocked > 0 then
-                    List(new Holding.ContractId(s"holding/$owner/${instrument.id}"))
-                else Nil
-            Right(cids)
+            if s.bal(owner, instrument.id).unlocked > 0 then
+                List(new Holding.ContractId(s"holding/$owner/${instrument.id}"))
+            else Nil
         }
 
-    def activeAllocations(owner: PartyId): LedgerM[Either[Error, List[Allocation.ContractId]]] =
-        State.inspect { s =>
-            Right(
-              s.allocs.values
-                  .filter(a => a.authorizer == owner && !a.closed)
-                  .map(a => new Allocation.ContractId(a.id))
-                  .toList
-            )
+    def activeAllocations(owner: PartyId): LedgerM[List[Allocation.ContractId]] =
+        StateT.inspect { s =>
+            s.allocs.values
+                .filter(a => a.authorizer == owner && !a.closed)
+                .map(a => new Allocation.ContractId(a.id))
+                .toList
         }

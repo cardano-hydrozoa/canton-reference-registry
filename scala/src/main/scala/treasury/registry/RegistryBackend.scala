@@ -12,8 +12,10 @@ import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
   *   - a local-assembly backend reads a Canton ACS (localnet integration) — Phase 2,
   *   - an HTTP/OpenAPI backend calls a real registry (testnet) — Phase 3.
   *
-  * Tagless-final over `F[_]` with an `F[Either[Error, A]]` result convention and a `protected
-  * tracer`, mirroring hydrozoa's `CardanoBackend`.
+  * Tagless-final over `F[_]` with a `protected tracer`, as in hydrozoa's `CardanoBackend`. Where
+  * `CardanoBackend` returns `F[Either[Error, A]]` (error as a value), we fold the error into `F`
+  * (the flow runs in a `MonadError[F, Error]`), since every method fails the same way — see
+  * [[treasury.ledger.LedgerClient]].
   *
   * The treasury flow uses only [[getAllocationFactory]] and [[getSettlementFactory]]. The rest of
   * the `RegistryApiV2` surface — the transfer factory and the allocation/transfer-instruction
@@ -27,11 +29,11 @@ trait RegistryBackend[F[_]]:
 
     def getAllocationFactory(
         arg: AllocationFactory_Allocate
-    ): F[Either[Error, EnrichedFactoryChoice[AllocationFactory_Allocate]]]
+    ): F[EnrichedFactoryChoice[AllocationFactory_Allocate]]
 
     def getSettlementFactory(
         arg: SettlementFactory_SettleBatch
-    ): F[Either[Error, EnrichedFactoryChoice[SettlementFactory_SettleBatch]]]
+    ): F[EnrichedFactoryChoice[SettlementFactory_SettleBatch]]
 
 object RegistryBackend:
 
