@@ -12,7 +12,11 @@ val catsEffectV = "3.6.3"
 // immutable "snapshot" versions to Maven Central; this is the latest 3.4 line, compatible with
 // the codegen-java 3.4.x component DPM ships. Bump alongside the DARs / codegen.
 val bindingsJavaV = "3.4.0-snapshot.20250626.13943.0.v7067a3a5"
+// gRPC Ledger API client (DamlLedgerClient) for the Java bindings — Phase 2 Canton integration.
+// Same version as bindings-java.
+val bindingsRxJavaV = bindingsJavaV
 val scalatestV = "3.2.19"
+val testcontainersV = "0.43.0"
 
 // Token-standard V2 DARs the codegen consumes (live in the sibling daml/ project). Order matters
 // only for readability; the codegen dedups shared daml-prim/stdlib modules across them.
@@ -48,6 +52,9 @@ lazy val root = (project in file("."))
       "org.typelevel" %% "cats-effect" % catsEffectV,
       "com.daml" % "bindings-java" % bindingsJavaV,
       "org.scalatest" %% "scalatest" % scalatestV % Test,
+      "com.daml" % "bindings-rxjava" % bindingsRxJavaV % Test,
+      "com.dimafeng" %% "testcontainers-scala-scalatest" % testcontainersV % Test,
+      "org.slf4j" % "slf4j-simple" % "2.0.16" % Test,
     ),
     tokenStandardDars := Seq(
       "splice-api-token-metadata-v1-1.0.0.dar",
