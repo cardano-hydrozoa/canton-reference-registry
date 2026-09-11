@@ -1,16 +1,18 @@
 package treasury
 
-import cats.effect.unsafe.implicits.global
-import daml.splice.api.token.holdingv2.InstrumentId
-import org.scalatest.funsuite.AnyFunSuite
-import treasury.ledger.InMemoryLedger
-import treasury.registry.RegistryBackendStub
-
 import java.time.Instant
 
+import org.scalatest.funsuite.AnyFunSuite
+
+import treasury.ledger.{InMemoryLedger, LedgerM, LedgerState}
+import treasury.registry.{RegistryBackendStub, Tracer}
+
+import daml.splice.api.token.holdingv2.InstrumentId
+
 /** Phase 1 port of `Splice.Tests.TestHydrozoaTreasury.test`: the treasury allocation workflow run
-  * against the pure stub registry + in-memory ledger, with no Canton. The flow's inline balance
-  * checkpoints do the asserting; a `Right(())` means every checkpoint held.
+  * against the pure stub registry + in-memory ledger, with no Canton and no effect runtime — the
+  * whole flow is a `State` transition. The flow's inline balance checkpoints do the asserting; a
+  * `Right(())` means every checkpoint held.
   */
 class TreasuryFlowSpec extends AnyFunSuite:
 
@@ -26,15 +28,15 @@ class TreasuryFlowSpec extends AnyFunSuite:
         val xId = new InstrumentId(env.admin, "X")
         val yId = new InstrumentId(env.admin, "Y")
 
-        val result = (for
-            ledger <- InMemoryLedger.create(
-              List(
-                (env.alice, xId, BigDecimal(1000)),
-                (env.bob, yId, BigDecimal(1000)),
-              )
-            )
-            flow = new TreasuryFlow[cats.effect.IO](new RegistryBackendStub(), ledger)
-            out <- flow.run(env, Instant.EPOCH)
-        yield out).unsafeRunSync()
+        val seed = LedgerState.seed(
+          List(
+            (env.alice, xId, BigDecimal(1000)),
+            (env.bob, yId, BigDecimal(1000)),
+          )
+        )
+        val flow =
+            new TreasuryFlow[LedgerM](new RegistryBackendStub[LedgerM](Tracer.noop), InMemoryLedger)
+
+        val (_, result) = flow.run(env, Instant.EPOCH).run(seed).value
 
         assert(result == Right(()), s"treasury flow failed: $result")

@@ -1,24 +1,65 @@
 package treasury.ledger
 
-import cats.effect.IO
-import cats.effect.Ref
-import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
-import daml.splice.api.token.allocationv2.Allocation
-import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
-import daml.splice.api.token.allocationv2.TransferSide
-import daml.splice.api.token.holdingv2.Holding
-import daml.splice.api.token.holdingv2.InstrumentId
-import treasury.PartyId
-import treasury.ledger.LedgerClient.SettleResult
-import treasury.registry.RegistryBackend.EnrichedFactoryChoice
-import treasury.registry.RegistryBackend.Error
-
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
 
+import cats.data.State
+
+import treasury.PartyId
+import treasury.ledger.LedgerClient.SettleResult
+import treasury.registry.RegistryBackend.{EnrichedFactoryChoice, Error}
+
+import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
+import daml.splice.api.token.allocationv2.{Allocation, SettlementFactory_SettleBatch, TransferSide}
+import daml.splice.api.token.holdingv2.{Holding, InstrumentId}
+
+/** A party's balance of one instrument. */
+final case class Bal(unlocked: BigDecimal, locked: BigDecimal)
+
+/** A live (or consumed) allocation and the funds it holds. */
+final case class AllocRec(
+    id: String,
+    authorizer: PartyId,
+    holds: Map[String, BigDecimal],
+    iterated: Boolean,
+    closed: Boolean,
+)
+
+/** The whole in-memory ledger, tracked per (owner, instrumentId.id); the single admin is implicit.
+  */
+final case class LedgerState(
+    balances: Map[(PartyId, String), Bal],
+    allocs: Map[String, AllocRec],
+    nextId: Int,
+):
+    def bal(owner: PartyId, instr: String): Bal = balances.getOrElse((owner, instr), Bal(0, 0))
+    def adjust(
+        owner: PartyId,
+        instr: String,
+        dUnlocked: BigDecimal,
+        dLocked: BigDecimal
+    ): LedgerState =
+        val b = bal(owner, instr)
+        copy(balances =
+            balances.updated((owner, instr), Bal(b.unlocked + dUnlocked, b.locked + dLocked))
+        )
+    def putAlloc(rec: AllocRec): LedgerState = copy(allocs = allocs.updated(rec.id, rec))
+    def freshAllocId: (String, LedgerState) = (s"alloc-$nextId", copy(nextId = nextId + 1))
+
+object LedgerState:
+    val empty: LedgerState = LedgerState(Map.empty, Map.empty, 0)
+
+    /** Pre-seed unlocked balances (the registry-admin mint done at setup). */
+    def seed(initial: List[(PartyId, InstrumentId, BigDecimal)]): LedgerState =
+        initial.foldLeft(empty)((s, t) => s.adjust(t._1, t._2.id, t._3, BigDecimal(0)))
+
+/** Ledger effect: a pure state transition over [[LedgerState]]. */
+type LedgerM[A] = State[LedgerState, A]
+
 /** In-memory stand-in for a Canton ledger + registry contracts, faithful enough to reproduce the
-  * balance transitions `TestHydrozoaTreasury` asserts. It interprets the CIP-0112 codegen args the
-  * stub echoes back, applying the token-standard allocation/settlement semantics:
+  * balance transitions `TestHydrozoaTreasury` asserts. Pure: every operation is a `State`
+  * transition (mirrors `CardanoBackendMock`'s `State[MockState, *]`), so the flow runs
+  * deterministically with no runtime. It interprets the CIP-0112 codegen args the stub echoes back:
   *
   *   - allocate: each SENDER-side leg locks its amount from the authorizer (unlocked → locked);
   *     receiver-side and empty (treasury) allocations lock nothing.
@@ -26,17 +67,14 @@ import scala.jdk.OptionConverters.*
   *     land *locked* iff the receiver authorizes an iterated (pool) allocation in the batch — that
   *     is what keeps deposits in the treasury — and *unlocked* otherwise (a payout to a party). An
   *     iterated finalized allocation rolls forward to a fresh allocation holding its funding.
-  *
-  * Balances are tracked per (owner, instrumentId.id); the single admin is implicit.
   */
-final class InMemoryLedger private (ref: Ref[IO, InMemoryLedger.State]) extends LedgerClient[IO]:
-    import InMemoryLedger.*
+object InMemoryLedger extends LedgerClient[LedgerM]:
 
     def exerciseAllocationFactory(
         actAs: PartyId,
         bundle: EnrichedFactoryChoice[AllocationFactory_Allocate],
-    ): IO[Either[Error, Allocation.ContractId]] =
-        ref.modify { s =>
+    ): LedgerM[Either[Error, Allocation.ContractId]] =
+        State { s =>
             val spec = bundle.arg.allocation
             val authorizer = spec.authorizer.owner.toScala.getOrElse("")
             val sides = spec.transferLegSides.asScala.toList
@@ -46,9 +84,10 @@ final class InMemoryLedger private (ref: Ref[IO, InMemoryLedger.State]) extends 
                     .foldLeft((s, Map.empty[String, BigDecimal])) { case ((st, h), side) =>
                         val amt = BigDecimal(side.amount)
                         val instr = side.instrumentId
-                        val st2 =
-                            st.adjust(authorizer, instr, -amt, amt) // unlocked -amt, locked +amt
-                        (st2, h.updated(instr, h.getOrElse(instr, BigDecimal(0)) + amt))
+                        (
+                          st.adjust(authorizer, instr, -amt, amt),
+                          h.updated(instr, h.getOrElse(instr, BigDecimal(0)) + amt)
+                        )
                     }
             val (id, afterId) = afterLocks.freshAllocId
             val rec = AllocRec(
@@ -64,8 +103,8 @@ final class InMemoryLedger private (ref: Ref[IO, InMemoryLedger.State]) extends 
     def exerciseSettlementFactory(
         actAs: PartyId,
         bundle: EnrichedFactoryChoice[SettlementFactory_SettleBatch],
-    ): IO[Either[Error, SettleResult]] =
-        ref.modify { s =>
+    ): LedgerM[Either[Error, SettleResult]] =
+        State { s =>
             val arg = bundle.arg
             val legs = arg.transferLegs.asScala.toList
             val finalized = arg.allocations.asScala.toList
@@ -113,17 +152,23 @@ final class InMemoryLedger private (ref: Ref[IO, InMemoryLedger.State]) extends 
             (afterAllocs, Right(SettleResult(nexts)))
         }
 
-    def unlockedBalance(owner: PartyId, instrument: InstrumentId): IO[Either[Error, BigDecimal]] =
-        ref.get.map(s => Right(s.bal(owner, instrument.id).unlocked))
+    def unlockedBalance(
+        owner: PartyId,
+        instrument: InstrumentId
+    ): LedgerM[Either[Error, BigDecimal]] =
+        State.inspect(s => Right(s.bal(owner, instrument.id).unlocked))
 
-    def lockedBalance(owner: PartyId, instrument: InstrumentId): IO[Either[Error, BigDecimal]] =
-        ref.get.map(s => Right(s.bal(owner, instrument.id).locked))
+    def lockedBalance(
+        owner: PartyId,
+        instrument: InstrumentId
+    ): LedgerM[Either[Error, BigDecimal]] =
+        State.inspect(s => Right(s.bal(owner, instrument.id).locked))
 
     def listHoldingCids(
         owner: PartyId,
         instrument: InstrumentId
-    ): IO[Either[Error, List[Holding.ContractId]]] =
-        ref.get.map { s =>
+    ): LedgerM[Either[Error, List[Holding.ContractId]]] =
+        State.inspect { s =>
             // One synthetic cid representing the party's unlocked holding of the instrument; the
             // flow feeds these back as inputs, which this fake locks by amount (not by cid).
             val cids =
@@ -133,8 +178,8 @@ final class InMemoryLedger private (ref: Ref[IO, InMemoryLedger.State]) extends 
             Right(cids)
         }
 
-    def activeAllocations(owner: PartyId): IO[Either[Error, List[Allocation.ContractId]]] =
-        ref.get.map { s =>
+    def activeAllocations(owner: PartyId): LedgerM[Either[Error, List[Allocation.ContractId]]] =
+        State.inspect { s =>
             Right(
               s.allocs.values
                   .filter(a => a.authorizer == owner && !a.closed)
@@ -142,42 +187,3 @@ final class InMemoryLedger private (ref: Ref[IO, InMemoryLedger.State]) extends 
                   .toList
             )
         }
-
-object InMemoryLedger:
-
-    final case class Bal(unlocked: BigDecimal, locked: BigDecimal)
-    final case class AllocRec(
-        id: String,
-        authorizer: PartyId,
-        holds: Map[String, BigDecimal],
-        iterated: Boolean,
-        closed: Boolean
-    )
-
-    final case class State(
-        balances: Map[(PartyId, String), Bal],
-        allocs: Map[String, AllocRec],
-        nextId: Int
-    ):
-        def bal(owner: PartyId, instr: String): Bal = balances.getOrElse((owner, instr), Bal(0, 0))
-        def adjust(
-            owner: PartyId,
-            instr: String,
-            dUnlocked: BigDecimal,
-            dLocked: BigDecimal
-        ): State =
-            val b = bal(owner, instr)
-            copy(balances =
-                balances.updated((owner, instr), Bal(b.unlocked + dUnlocked, b.locked + dLocked))
-            )
-        def putAlloc(rec: AllocRec): State = copy(allocs = allocs.updated(rec.id, rec))
-        def freshAllocId: (String, State) = (s"alloc-$nextId", copy(nextId = nextId + 1))
-
-    object State:
-        val empty: State = State(Map.empty, Map.empty, 0)
-
-    /** Build a ledger pre-seeded with unlocked balances (the registry-admin mint done at setup). */
-    def create(initial: List[(PartyId, InstrumentId, BigDecimal)]): IO[InMemoryLedger] =
-        val seeded =
-            initial.foldLeft(State.empty)((s, t) => s.adjust(t._1, t._2.id, t._3, BigDecimal(0)))
-        Ref[IO].of(seeded).map(new InMemoryLedger(_))
