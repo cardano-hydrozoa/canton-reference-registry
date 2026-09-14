@@ -44,7 +44,8 @@ class CantonRegistryAcceptanceSpec extends AnyFunSuite:
                 val svc = RegistryService(AcsSourceCanton(ledger, admin))
                 // No AccountConfig on the ledger → this authorizer's config is absent (dropped).
                 val bundle =
-                    svc.getAllocationFactory(Account(Some(admin), None, "acc-none")).unsafeRunSync()
+                    svc.getAllocationFactory(Account(Some(admin), None, AccountId("acc-none")))
+                        .unsafeRunSync()
 
                 assert(
                   bundle.factoryId == expected,
@@ -59,10 +60,10 @@ class CantonRegistryAcceptanceSpec extends AnyFunSuite:
                 assert(bundle.disclosures.map(_.contractId) == List(expected))
                 val d = bundle.disclosures.head
                 assert(
-                  d.templateId.contains("TokenRules"),
-                  s"unexpected templateId: ${d.templateId}"
+                  d.templateId.value.contains("TokenRules"),
+                  s"unexpected templateId: ${d.templateId.value}"
                 )
                 assert(d.createdEventBlob.value.nonEmpty, "created-event blob must be populated")
-                assert(d.synchronizerId.nonEmpty, "synchronizer id must be populated")
+                assert(d.synchronizerId.value.nonEmpty, "synchronizer id must be populated")
             finally ledger.close()
         finally container.stop()

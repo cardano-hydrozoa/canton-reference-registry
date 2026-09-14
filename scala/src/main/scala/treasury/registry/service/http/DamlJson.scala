@@ -32,7 +32,7 @@ object DamlJson:
             owner <- c.get[Option[String]]("owner")
             provider <- c.get[Option[String]]("provider")
             id <- c.get[String]("id")
-        yield Account(owner, provider, id)
+        yield Account(owner, provider, AccountId(id))
     }
 
     private given legDecoder: Decoder[TransferLeg] = Decoder.instance { c =>

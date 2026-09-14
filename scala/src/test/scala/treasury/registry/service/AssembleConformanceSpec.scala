@@ -25,20 +25,31 @@ import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
   */
 class AssembleConformanceSpec extends AnyFunSuite:
 
-    private def acct(id: String, owner: String): Account = Account(Some(owner), None, id)
+    private def acct(id: String, owner: String): Account = Account(Some(owner), None, AccountId(id))
     private def cfg(cidTag: String, account: Account): Contract[AccountConfigPayload] =
         Contract(
           Cid(cidTag),
-          "TestTokenV2:AccountConfig",
+          TemplateId("TestTokenV2:AccountConfig"),
           AccountConfigPayload(account),
           Blob(s"blob-$cidTag"),
-          "sync-1"
+          SynchronizerId("sync-1")
         )
     private def disc(cidTag: String): Disclosure =
-        Disclosure("TestTokenV2:Holding", Cid(cidTag), Blob(s"blob-$cidTag"), "sync-1")
+        Disclosure(
+          TemplateId("TestTokenV2:Holding"),
+          Cid(cidTag),
+          Blob(s"blob-$cidTag"),
+          SynchronizerId("sync-1")
+        )
 
     private val rules: Contract[TokenRulesPayload] =
-        Contract(Cid("rules"), "TestTokenV2:TokenRules", (), Blob("blob-rules"), "sync-1")
+        Contract(
+          Cid("rules"),
+          TemplateId("TestTokenV2:TokenRules"),
+          (),
+          Blob("blob-rules"),
+          SynchronizerId("sync-1")
+        )
 
     private val alice = acct("acc-alice", "alice")
     private val bob = acct("acc-bob", "bob")

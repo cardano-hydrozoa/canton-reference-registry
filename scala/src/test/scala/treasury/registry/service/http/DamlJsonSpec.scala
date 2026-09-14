@@ -45,7 +45,9 @@ class DamlJsonSpec extends AnyFunSuite:
     test("allocationAuthorizer extracts the account from Daml-JSON choiceArguments"):
         val ca = Json.obj("allocation" -> Json.obj("authorizer" -> acctJson("alice", "acc-alice")))
         assert(
-          DamlJson.allocationAuthorizer(ca) == Right(Account(Some("alice"), None, "acc-alice"))
+          DamlJson.allocationAuthorizer(ca) == Right(
+            Account(Some("alice"), None, AccountId("acc-alice"))
+          )
         )
 
     test("settlementLegs and settlementAllocationCids extract legs and allocation cids"):
@@ -65,8 +67,8 @@ class DamlJsonSpec extends AnyFunSuite:
           DamlJson.settlementLegs(ca) == Right(
             List(
               TransferLeg(
-                Account(Some("alice"), None, "acc-alice"),
-                Account(Some("bob"), None, "acc-bob")
+                Account(Some("alice"), None, AccountId("acc-alice")),
+                Account(Some("bob"), None, AccountId("acc-bob"))
               )
             )
           )

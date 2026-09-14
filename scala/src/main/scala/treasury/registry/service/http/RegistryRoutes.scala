@@ -53,10 +53,10 @@ final class RegistryRoutes[F[_]: Concurrent](svc: RegistryService[F]) extends Ht
             choiceContextData = DamlJson.renderChoiceContextData(b.values),
             disclosedContracts = b.disclosures.map(d =>
                 ai.DisclosedContract(
-                  d.templateId,
+                  d.templateId.value,
                   d.contractId.value,
                   d.createdEventBlob.value,
-                  d.synchronizerId
+                  d.synchronizerId.value
                 )
             ),
           ),
@@ -69,10 +69,10 @@ final class RegistryRoutes[F[_]: Concurrent](svc: RegistryService[F]) extends Ht
             choiceContextData = DamlJson.renderChoiceContextData(b.values),
             disclosedContracts = b.disclosures.map(d =>
                 al.DisclosedContract(
-                  d.templateId,
+                  d.templateId.value,
                   d.contractId.value,
                   d.createdEventBlob.value,
-                  d.synchronizerId
+                  d.synchronizerId.value
                 )
             ),
           ),

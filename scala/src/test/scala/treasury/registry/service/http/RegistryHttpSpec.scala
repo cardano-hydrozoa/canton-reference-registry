@@ -25,20 +25,30 @@ import treasury.registry.openapi.allocinstr.models as ai
   */
 class RegistryHttpSpec extends AnyFunSuite:
 
-    private def acct(id: String, owner: String): Account = Account(Some(owner), None, id)
+    private def acct(id: String, owner: String): Account = Account(Some(owner), None, AccountId(id))
     private def acctJson(a: Account): Json =
-        Json.obj("owner" -> a.owner.asJson, "provider" -> a.provider.asJson, "id" -> a.id.asJson)
+        Json.obj(
+          "owner" -> a.owner.asJson,
+          "provider" -> a.provider.asJson,
+          "id" -> a.id.value.asJson
+        )
     private def cfg(cidTag: String, account: Account): Contract[AccountConfigPayload] =
         Contract(
           Cid(cidTag),
-          "TestTokenV2:AccountConfig",
+          TemplateId("TestTokenV2:AccountConfig"),
           AccountConfigPayload(account),
           Blob(s"blob-$cidTag"),
-          "sync-1"
+          SynchronizerId("sync-1")
         )
 
     private val rules =
-        Contract(Cid("rules"), "TestTokenV2:TokenRules", (), Blob("blob-rules"), "sync-1")
+        Contract(
+          Cid("rules"),
+          TemplateId("TestTokenV2:TokenRules"),
+          (),
+          Blob("blob-rules"),
+          SynchronizerId("sync-1")
+        )
     private val alice = acct("acc-alice", "alice")
     private val bob = acct("acc-bob", "bob")
 
@@ -70,7 +80,12 @@ class RegistryHttpSpec extends AnyFunSuite:
     test("settlement-factory endpoint threads legs + allocations into disclosures"):
         val locked = Map(
           Cid("alloc-1") -> List(
-            Disclosure("TestTokenV2:Holding", Cid("locked-1"), Blob("b"), "sync-1")
+            Disclosure(
+              TemplateId("TestTokenV2:Holding"),
+              Cid("locked-1"),
+              Blob("b"),
+              SynchronizerId("sync-1")
+            )
           )
         )
         val svc = RegistryService(

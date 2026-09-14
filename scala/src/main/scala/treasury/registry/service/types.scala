@@ -8,14 +8,32 @@ import treasury.PartyId
   * types appear only at the edges (the Canton [[AcsSource]] and the HTTP layer).
   */
 
-/** Port of Splice `Splice.Api.Token.HoldingV2.Account`: a holding account at a registry. `id` is
-  * the registry-local account identifier; `owner`/`provider` are the controlling parties (both
-  * optional, as in the standard — e.g. the registry's own "special" accounts have neither).
-  */
-final case class Account(owner: Option[PartyId], provider: Option[PartyId], id: String)
+// Identifier types: each is an opaque `String` (with an `apply` constructor and `value` extractor),
+// so distinct identifiers sharing the same representation can never be transposed. Party ids stay
+// [[treasury.PartyId]], the project-wide alias.
 
-/** Port of `HoldingV2.InstrumentId`: which instrument, `admin` being the registry admin party. */
-final case class InstrumentId(admin: PartyId, id: String)
+/** A registry-local account identifier (`HoldingV2.Account.id`). */
+opaque type AccountId = String
+object AccountId:
+    def apply(s: String): AccountId = s
+    extension (a: AccountId) def value: String = a
+
+/** An instrument's textual identifier (`HoldingV2.InstrumentId.id`). */
+opaque type InstrumentId = String
+object InstrumentId:
+    def apply(s: String): InstrumentId = s
+    extension (i: InstrumentId) def value: String = i
+
+/** Port of Splice `Splice.Api.Token.HoldingV2.Account`: a holding account at a registry. `owner`/
+  * `provider` are the controlling parties (both optional, as in the standard — the registry's own
+  * "special" accounts have neither).
+  */
+final case class Account(owner: Option[PartyId], provider: Option[PartyId], id: AccountId)
+
+/** Port of `HoldingV2.InstrumentId`: an instrument = admin party + textual `id`. Defined for the
+  * transfer/settlement surface; not yet read by the flow.
+  */
+final case class Instrument(admin: PartyId, id: InstrumentId)
 
 /** One leg of a settlement batch: move the instrument from `sender` to `receiver`. Mirrors the
   * `sender`/`receiver` accounts read off `SettlementFactory_SettleBatch.transferLegs` in the Daml
@@ -40,15 +58,27 @@ object Blob:
     def apply(s: String): Blob = s
     extension (b: Blob) def value: String = b
 
+/** A fully-qualified template id `<pkgId>:<Module>:<Entity>` (`DisclosedContract.templateId`). */
+opaque type TemplateId = String
+object TemplateId:
+    def apply(s: String): TemplateId = s
+    extension (t: TemplateId) def value: String = t
+
+/** The synchronizer a contract is assigned to (`DisclosedContract.synchronizerId`). */
+opaque type SynchronizerId = String
+object SynchronizerId:
+    def apply(s: String): SynchronizerId = s
+    extension (s: SynchronizerId) def value: String = s
+
 /** Everything needed to render a wire `DisclosedContract` (all four required fields of the OpenAPI
   * schema): the submitter attaches these so the registry's admin-owned contracts are visible in its
   * transaction. Port of an entry of Daml `Disclosures'`.
   */
 final case class Disclosure(
-    templateId: String,
+    templateId: TemplateId,
     contractId: Cid,
     createdEventBlob: Blob,
-    synchronizerId: String,
+    synchronizerId: SynchronizerId,
 )
 
 /** A contract read from the ACS: its id and payload (the assembly branches on the payload), plus
@@ -57,10 +87,10 @@ final case class Disclosure(
   */
 final case class Contract[+A](
     cid: Cid,
-    templateId: String,
+    templateId: TemplateId,
     payload: A,
     createdEventBlob: Blob,
-    synchronizerId: String,
+    synchronizerId: SynchronizerId,
 ):
     def disclosure: Disclosure = Disclosure(templateId, cid, createdEventBlob, synchronizerId)
 

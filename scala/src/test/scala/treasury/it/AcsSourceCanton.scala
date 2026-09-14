@@ -44,14 +44,14 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
     private def toContract[Ct, A](d: LedgerClientCanton.Disclosed[Ct], payload: A): Contract[A] =
         Contract(
           Cid(d.contractId),
-          d.templateId,
+          TemplateId(d.templateId),
           payload,
           Blob(d.createdEventBlobBase64),
-          d.synchronizerId
+          SynchronizerId(d.synchronizerId)
         )
 
     private def toDomainAccount(a: DamlAccount): Account =
-        Account(a.owner.toScala, a.provider.toScala, a.id)
+        Account(a.owner.toScala, a.provider.toScala, AccountId(a.id))
 
     private def runIO[A](c: CantonM[A]): IO[A] =
         c.value.flatMap(_.fold(IO.raiseError, IO.pure))
