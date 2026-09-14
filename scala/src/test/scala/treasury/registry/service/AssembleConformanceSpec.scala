@@ -2,6 +2,7 @@ package treasury.registry.service
 
 import org.scalatest.funsuite.AnyFunSuite
 
+import treasury.PartyId
 import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
 
 /** Tier-1 conformance: structural properties of the pure [[Assemble]] core, with the spec derived
@@ -25,7 +26,8 @@ import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
   */
 class AssembleConformanceSpec extends AnyFunSuite:
 
-    private def acct(id: String, owner: String): Account = Account(Some(owner), None, AccountId(id))
+    private def acct(id: String, owner: String): Account =
+        Account(Some(PartyId(owner)), None, AccountId(id))
     private def cfg(cidTag: String, account: Account): Contract[AccountConfigPayload] =
         Contract(
           Cid(cidTag),

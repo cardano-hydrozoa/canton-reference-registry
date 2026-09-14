@@ -56,7 +56,7 @@ class CantonSmokeSpec extends AnyFunSuite:
                 assert(parties.values.toSet.size == hints.size, s"party ids not distinct: $parties")
                 hints.foreach(h =>
                     assert(
-                      parties(h).startsWith(h),
+                      parties(h).value.startsWith(h),
                       s"party id for $h not namespaced: ${parties(h)}"
                     )
                 )

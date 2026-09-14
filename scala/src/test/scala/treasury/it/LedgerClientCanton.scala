@@ -36,7 +36,7 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
       */
     def createTokenRules(admin: PartyId): CantonM[TokenRules.ContractId] =
         for
-            _ <- submitAndWait(admin, List(TokenRules.create(admin)))
+            _ <- submitAndWait(admin, List(TokenRules.create(admin.value)))
             rules <- activeContractsOf(ContractFilter.of(TokenRules.COMPANION), admin)
             cid <- EitherT.fromEither[IO](
               rules.headOption
@@ -51,7 +51,7 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
             end <- single(client.getStateClient.getLedgerEnd)
             batches <- blocking(
               client.getStateClient
-                  .getActiveContracts(filter, Set(readAs).asJava, false, end)
+                  .getActiveContracts(filter, Set(readAs.value).asJava, false, end)
                   .blockingIterable()
                   .asScala
                   .toList
@@ -68,7 +68,9 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
         readAs: PartyId,
     ): CantonM[List[LedgerClientCanton.Disclosed[Ct]]] =
         val fmt =
-            filter.withIncludeCreatedEventBlob(true).eventFormat(Optional.of(Set(readAs).asJava))
+            filter
+                .withIncludeCreatedEventBlob(true)
+                .eventFormat(Optional.of(Set(readAs.value).asJava))
         for
             end <- single(client.getStateClient.getLedgerEnd)
             responses <- blocking(
@@ -91,7 +93,7 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
     private def submitAndWait(actAs: PartyId, cmds: List[HasCommands]): CantonM[Unit] =
         val submission = CommandsSubmission
             .create(userId, UUID.randomUUID().toString, Optional.empty(), cmds.asJava)
-            .withActAs(actAs)
+            .withActAs(actAs.value)
         single(client.getCommandClient.submitAndWait(submission)).map(_ => ())
 
     private def single[A](s: => Single[A]): CantonM[A] = blocking(s.blockingGet())

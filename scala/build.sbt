@@ -74,6 +74,8 @@ lazy val root = (project in file("."))
       "org.http4s" %% "http4s-dsl" % http4sV,
       "org.openapitools" % "openapi-generator-cli" % openapiGenV % OpenApiCodegen,
       "org.scalatest" %% "scalatest" % scalatestV % Test,
+      // AsyncIOSpec: run cats-effect IO/Resource directly in ScalaTest (no unsafeRunSync in tests).
+      "org.typelevel" %% "cats-effect-testing-scalatest" % "1.6.0" % Test,
       "com.daml" % "bindings-rxjava" % bindingsRxJavaV % Test,
       "org.http4s" %% "http4s-ember-client" % http4sV % Test,
       "com.dimafeng" %% "testcontainers-scala-scalatest" % testcontainersV % Test,

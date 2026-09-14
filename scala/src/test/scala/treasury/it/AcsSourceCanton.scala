@@ -51,7 +51,11 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
         )
 
     private def toDomainAccount(a: DamlAccount): Account =
-        Account(a.owner.toScala, a.provider.toScala, AccountId(a.id))
+        Account(
+          a.owner.toScala.map(PartyId(_)),
+          a.provider.toScala.map(PartyId(_)),
+          AccountId(a.id)
+        )
 
     private def runIO[A](c: CantonM[A]): IO[A] =
         c.value.flatMap(_.fold(IO.raiseError, IO.pure))

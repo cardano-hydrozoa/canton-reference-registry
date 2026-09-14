@@ -5,6 +5,7 @@ import io.circe.syntax.*
 
 import org.scalatest.funsuite.AnyFunSuite
 
+import treasury.PartyId
 import treasury.registry.service.*
 import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
 
@@ -46,7 +47,7 @@ class DamlJsonSpec extends AnyFunSuite:
         val ca = Json.obj("allocation" -> Json.obj("authorizer" -> acctJson("alice", "acc-alice")))
         assert(
           DamlJson.allocationAuthorizer(ca) == Right(
-            Account(Some("alice"), None, AccountId("acc-alice"))
+            Account(Some(PartyId("alice")), None, AccountId("acc-alice"))
           )
         )
 
@@ -67,8 +68,8 @@ class DamlJsonSpec extends AnyFunSuite:
           DamlJson.settlementLegs(ca) == Right(
             List(
               TransferLeg(
-                Account(Some("alice"), None, AccountId("acc-alice")),
-                Account(Some("bob"), None, AccountId("acc-bob"))
+                Account(Some(PartyId("alice")), None, AccountId("acc-alice")),
+                Account(Some(PartyId("bob")), None, AccountId("acc-bob"))
               )
             )
           )

@@ -22,7 +22,7 @@ object CantonParties:
                 val resp = stub.allocateParty(
                   AllocatePartyRequest.newBuilder().setPartyIdHint(hint).build()
                 )
-                hint -> resp.getPartyDetails.getParty
+                hint -> PartyId(resp.getPartyDetails.getParty)
             }.toMap
         finally
             val _ = channel.shutdownNow()

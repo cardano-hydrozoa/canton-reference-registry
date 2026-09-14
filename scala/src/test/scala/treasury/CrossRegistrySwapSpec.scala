@@ -4,6 +4,7 @@ import java.time.Instant
 
 import org.scalatest.funsuite.AnyFunSuite
 
+import treasury.PartyId
 import treasury.ledger.{InMemoryLedger, LedgerM, LedgerState}
 import treasury.registry.{RegistryBackendStub, Tracer}
 
@@ -17,16 +18,16 @@ import daml.splice.api.token.holdingv2.InstrumentId
 class CrossRegistrySwapSpec extends AnyFunSuite:
 
     private val env = SwapEnv(
-      registryX = "registryX",
-      registryY = "registryY",
-      alice = "alice",
-      bob = "bob",
-      operator = "operator",
+      registryX = PartyId("registryX"),
+      registryY = PartyId("registryY"),
+      alice = PartyId("alice"),
+      bob = PartyId("bob"),
+      operator = PartyId("operator"),
     )
 
     test("atomic cross-registry swap: alice's X <-> bob's Y"):
-        val xId = new InstrumentId(env.registryX, "X")
-        val yId = new InstrumentId(env.registryY, "Y")
+        val xId = new InstrumentId(env.registryX.value, "X")
+        val yId = new InstrumentId(env.registryY.value, "Y")
 
         val seed = LedgerState.seed(
           List(

@@ -5,6 +5,7 @@ import cats.syntax.all.*
 import io.circe.{Decoder, DecodingFailure, Json}
 import io.circe.syntax.*
 
+import treasury.PartyId
 import treasury.registry.service.*
 import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
 
@@ -32,7 +33,7 @@ object DamlJson:
             owner <- c.get[Option[String]]("owner")
             provider <- c.get[Option[String]]("provider")
             id <- c.get[String]("id")
-        yield Account(owner, provider, AccountId(id))
+        yield Account(owner.map(PartyId(_)), provider.map(PartyId(_)), AccountId(id))
     }
 
     private given legDecoder: Decoder[TransferLeg] = Decoder.instance { c =>

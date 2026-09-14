@@ -2,6 +2,7 @@ package treasury.registry.service
 
 import org.scalatest.funsuite.AnyFunSuite
 
+import treasury.PartyId
 import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
 
 /** Wiring test for [[RegistryService]] over the in-memory [[MockAcsSource]]: the F-level glue
@@ -14,7 +15,8 @@ class RegistryServiceSpec extends AnyFunSuite:
     private type ErrOr[A] =
         Either[Throwable, A] // has MonadThrow; keeps the wiring test synchronous
 
-    private def acct(id: String, owner: String): Account = Account(Some(owner), None, AccountId(id))
+    private def acct(id: String, owner: String): Account =
+        Account(Some(PartyId(owner)), None, AccountId(id))
     private def cfg(cidTag: String, account: Account): Contract[AccountConfigPayload] =
         Contract(
           Cid(cidTag),

@@ -35,9 +35,9 @@ object TokenStandardHelpers:
     extension (party: PartyId)
         /** Account with only an owner set (Daml's `basicAccount`). */
         def basicAccount: Account =
-            new Account(Optional.of(party), Optional.empty(), "")
+            new Account(Optional.of(party.value), Optional.empty(), "")
 
-    def instrumentId(admin: PartyId, id: String): InstrumentId = new InstrumentId(admin, id)
+    def instrumentId(admin: PartyId, id: String): InstrumentId = new InstrumentId(admin.value, id)
 
     def transferLeg(
         transferLegId: String,
@@ -85,7 +85,7 @@ object TokenStandardHelpers:
         nextIterationFunding: Option[Map[String, BigDecimal]],
     ): AllocationSpecification =
         new AllocationSpecification(
-          admin,
+          admin.value,
           authorizer,
           sides.asJava,
           Optional.empty(), // settlementDeadline
@@ -95,7 +95,7 @@ object TokenStandardHelpers:
         )
 
     def settlementInfo(executors: List[PartyId], id: String): SettlementInfo =
-        new SettlementInfo(executors.asJava, id, Optional.empty(), emptyMetadata)
+        new SettlementInfo(executors.map(_.value).asJava, id, Optional.empty(), emptyMetadata)
 
     def allocationFactoryAllocate(
         settlement: SettlementInfo,
@@ -110,7 +110,7 @@ object TokenStandardHelpers:
           requestedAt,
           inputs.asJava,
           emptyExtraArgs,
-          actors.asJava
+          actors.map(_.value).asJava
         )
 
     def settlementFactorySettleBatch(
@@ -123,7 +123,7 @@ object TokenStandardHelpers:
           settlement,
           legs.asJava,
           allocations.asJava,
-          actors.asJava,
+          actors.map(_.value).asJava,
           emptyExtraArgs
         )
 

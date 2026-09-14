@@ -13,6 +13,7 @@ import org.http4s.implicits.*
 
 import org.scalatest.funsuite.AnyFunSuite
 
+import treasury.PartyId
 import treasury.registry.service.*
 
 import treasury.registry.openapi.alloc.models as al
@@ -25,11 +26,12 @@ import treasury.registry.openapi.allocinstr.models as ai
   */
 class RegistryHttpSpec extends AnyFunSuite:
 
-    private def acct(id: String, owner: String): Account = Account(Some(owner), None, AccountId(id))
+    private def acct(id: String, owner: String): Account =
+        Account(Some(PartyId(owner)), None, AccountId(id))
     private def acctJson(a: Account): Json =
         Json.obj(
-          "owner" -> a.owner.asJson,
-          "provider" -> a.provider.asJson,
+          "owner" -> a.owner.map(_.value).asJson,
+          "provider" -> a.provider.map(_.value).asJson,
           "id" -> a.id.value.asJson
         )
     private def cfg(cidTag: String, account: Account): Contract[AccountConfigPayload] =

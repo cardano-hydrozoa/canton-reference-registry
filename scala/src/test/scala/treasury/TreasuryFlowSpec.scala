@@ -4,6 +4,7 @@ import java.time.Instant
 
 import org.scalatest.funsuite.AnyFunSuite
 
+import treasury.PartyId
 import treasury.ledger.{InMemoryLedger, LedgerM, LedgerState}
 import treasury.registry.{RegistryBackendStub, Tracer}
 
@@ -17,16 +18,16 @@ import daml.splice.api.token.holdingv2.InstrumentId
 class TreasuryFlowSpec extends AnyFunSuite:
 
     private val env = TreasuryEnv(
-      admin = "adminTT2",
-      provider = "provider",
-      alice = "alice",
-      bob = "bob",
-      hydrozoa = "hydrozoa",
+      admin = PartyId("adminTT2"),
+      provider = PartyId("provider"),
+      alice = PartyId("alice"),
+      bob = PartyId("bob"),
+      hydrozoa = PartyId("hydrozoa"),
     )
 
     test("hydrozoa treasury flow: deposit, off-ledger swap, settle, close"):
-        val xId = new InstrumentId(env.admin, "X")
-        val yId = new InstrumentId(env.admin, "Y")
+        val xId = new InstrumentId(env.admin.value, "X")
+        val yId = new InstrumentId(env.admin.value, "Y")
 
         val seed = LedgerState.seed(
           List(

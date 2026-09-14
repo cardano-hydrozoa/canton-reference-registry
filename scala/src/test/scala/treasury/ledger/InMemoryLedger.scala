@@ -81,7 +81,7 @@ object InMemoryLedger extends LedgerClient[LedgerM]:
     ): LedgerM[Allocation.ContractId] =
         StateT { s =>
             val spec = bundle.arg.allocation
-            val authorizer = spec.authorizer.owner.toScala.getOrElse("")
+            val authorizer = PartyId(spec.authorizer.owner.toScala.getOrElse(""))
             val sides = spec.transferLegSides.asScala.toList
             val (afterLocks, holds) =
                 sides
@@ -125,8 +125,8 @@ object InMemoryLedger extends LedgerClient[LedgerM]:
             val afterLegs = legs.foldLeft(s) { (st, leg) =>
                 val amt = BigDecimal(leg.amount)
                 val instr = leg.instrumentId
-                val sender = leg.sender.owner.toScala.getOrElse("")
-                val receiver = leg.receiver.owner.toScala.getOrElse("")
+                val sender = PartyId(leg.sender.owner.toScala.getOrElse(""))
+                val receiver = PartyId(leg.receiver.owner.toScala.getOrElse(""))
                 val st1 = st.adjust(sender, instr, BigDecimal(0), -amt) // sender: locked -amt
                 if poolAuthorizers.contains(receiver) then
                     st1.adjust(receiver, instr, BigDecimal(0), amt) // stays locked in pool
@@ -146,7 +146,7 @@ object InMemoryLedger extends LedgerClient[LedgerM]:
                                 val funding =
                                     fundingJava.asScala.view.mapValues(BigDecimal(_)).toMap
                                 val (nid, withId) = closed.freshAllocId
-                                val auth = prior.map(_.authorizer).getOrElse("")
+                                val auth = prior.map(_.authorizer).getOrElse(PartyId(""))
                                 val rolled = withId.putAlloc(
                                   AllocRec(nid, auth, funding, iterated = true, closed = false)
                                 )
