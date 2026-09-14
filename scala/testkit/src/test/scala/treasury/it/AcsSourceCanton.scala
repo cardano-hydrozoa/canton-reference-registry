@@ -44,11 +44,17 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
         )
 
     /** Port of `getLockedTokensForAllocationsD`: for each named allocation, read its `Allocation`
-      * interface view to find the holdings it locked, then disclose those holdings so the settlement
-      * submission can see the admin-owned locked tokens. The holdings are disclosed via the `Token`
-      * *template* (as the Daml `queryDisclosure' @Token` does), not the `Holding` interface — an
-      * interface-filtered ACS read carries no usable template `createdEventBlob`, which the ledger
-      * rejects (`MISSING_FIELD: DisclosedContract.createdEventBlob`).
+      * interface view to find the holdings it locked, then disclose those holdings via the `Token`
+      * *template* (as the Daml `queryDisclosure' @Token` does), selecting them by contract id.
+      *
+      * Two Ledger-API constraints shape this (both diverge from the Daml, which fetches per cid):
+      *   - disclosures must come from the *template* read, not the `Holding` interface — an
+      *     interface-filtered ACS read carries no usable `createdEventBlob`, which the ledger
+      *     rejects (`MISSING_FIELD: DisclosedContract.createdEventBlob`); and
+      *   - there is no usable by-cid fetch: rxjava's `EventQueryService.getEventsByContractId`
+      *     predates Canton's mandatory `event_format` and is rejected (`MISSING_FIELD:
+      *     event_format`), so we list the template/interface and filter by cid. The selected set is
+      *     identical to what `queryInterfaceContractId`/`queryDisclosure'` yield per cid.
       */
     def lockedHoldingDisclosures(allocationCids: List[Cid]): IO[List[Disclosure]] =
         val wanted = allocationCids.map(_.value).toSet
