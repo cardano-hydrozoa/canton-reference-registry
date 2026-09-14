@@ -19,7 +19,9 @@ object CantonParties:
         try
             val stub = PartyManagementServiceGrpc.newBlockingStub(channel)
             hints.map { hint =>
-                val resp = stub.allocateParty(AllocatePartyRequest.newBuilder().setPartyIdHint(hint).build())
+                val resp = stub.allocateParty(
+                  AllocatePartyRequest.newBuilder().setPartyIdHint(hint).build()
+                )
                 hint -> resp.getPartyDetails.getParty
             }.toMap
         finally

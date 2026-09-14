@@ -16,8 +16,7 @@ import daml.splice.testing.tokens.testtokenv2.TokenRules
   *
   * Gated on `CANTON_IT=1` so the normal `sbt test` loop stays pure/fast (the container pull + boot
   * takes minutes). The gate is read from the sbt server's environment, so start a fresh server with
-  * it set. On a standard Docker host:
-  * {{{ CANTON_IT=1 sbt "testOnly treasury.it.CantonSmokeSpec" }}}
+  * it set. On a standard Docker host: {{{CANTON_IT=1 sbt "testOnly treasury.it.CantonSmokeSpec"}}}
   *
   * In this sandbox (very new Docker + a nixpkgs JVM) two extra knobs are needed, unrelated to the
   * code: `-Dapi.version=1.44` (testcontainers' bundled docker-java negotiates API 1.32, which
@@ -55,7 +54,12 @@ class CantonSmokeSpec extends AnyFunSuite:
                 val parties = CantonParties.allocate("localhost", port, hints)
                 assert(parties.keySet == hints.toSet, s"missing parties: $parties")
                 assert(parties.values.toSet.size == hints.size, s"party ids not distinct: $parties")
-                hints.foreach(h => assert(parties(h).startsWith(h), s"party id for $h not namespaced: ${parties(h)}"))
+                hints.foreach(h =>
+                    assert(
+                      parties(h).startsWith(h),
+                      s"party id for $h not namespaced: ${parties(h)}"
+                    )
+                )
 
                 // Submit + typed ACS read: create the registry's TokenRules as admin, read it back.
                 val ledger = LedgerClientCanton.connect("localhost", port)
@@ -63,7 +67,10 @@ class CantonSmokeSpec extends AnyFunSuite:
                     val admin = parties("adminTT2")
                     val rules = (for
                         _ <- ledger.createTokenRules(admin)
-                        rs <- ledger.activeContractsOf(ContractFilter.of(TokenRules.COMPANION), admin)
+                        rs <- ledger.activeContractsOf(
+                          ContractFilter.of(TokenRules.COMPANION),
+                          admin
+                        )
                     yield rs).value.unsafeRunSync()
                     assert(rules.exists(_.size == 1), s"expected exactly 1 TokenRules, got: $rules")
                 finally ledger.close()
