@@ -20,6 +20,7 @@ import treasury.registry.RegistryApi.Error
 import treasury.registry.service.ContextKeys
 
 import daml.splice.api.token.allocationinstructionv2.{AllocationFactory, AllocationFactory_Allocate}
+import daml.splice.api.token.allocationv2.{Allocation, SettlementFactory, SettlementFactory_SettleBatch}
 import daml.splice.api.token.holdingv2.{Account as DamlAccount, Holding, InstrumentId}
 import daml.splice.api.token.metadatav1.{AnyContract, AnyValue, ChoiceContext, ExtraArgs}
 import daml.splice.api.token.metadatav1.anyvalue.{AV_ContractId, AV_List}
@@ -114,6 +115,28 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
         submitAndWait(
           actAs,
           List(new AllocationFactory.ContractId(factoryCid).exerciseAllocationFactory_Allocate(arg)),
+          disclosures,
+        )
+
+    /** The `Allocation`-interface cids visible to `readAs` — read back after creating allocations
+      * (this build has no submit-and-wait-for-tx-tree to return the created cid directly).
+      */
+    def activeAllocations(readAs: PartyId): CantonM[List[Allocation.ContractId]] =
+        activeContractsOf(Allocation.contractFilter(), readAs).map(_.map(_.id))
+
+    /** Exercise `SettlementFactory_SettleBatch` on the factory contract (the `TokenRules` cid coerced
+      * to the `SettlementFactory` interface), attaching the assembled disclosures — including the
+      * allocations' locked-holding blobs. Succeeds iff the ledger accepts the batch.
+      */
+    def exerciseSettlementFactory(
+        actAs: PartyId,
+        factoryCid: String,
+        arg: SettlementFactory_SettleBatch,
+        disclosures: List[DisclosedContract],
+    ): CantonM[Unit] =
+        submitAndWait(
+          actAs,
+          List(new SettlementFactory.ContractId(factoryCid).exerciseSettlementFactory_SettleBatch(arg)),
           disclosures,
         )
 

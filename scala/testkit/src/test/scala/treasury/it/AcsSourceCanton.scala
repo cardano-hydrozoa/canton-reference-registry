@@ -4,14 +4,18 @@ import scala.jdk.OptionConverters.*
 
 import cats.effect.IO
 
+import scala.jdk.CollectionConverters.*
+
 import com.daml.ledger.javaapi.data.ContractFilter
 
 import treasury.PartyId
 import treasury.registry.service.*
 
+import daml.splice.api.token.allocationv2.Allocation
 import daml.splice.api.token.holdingv2.Account as DamlAccount
 import daml.splice.testing.tokens.testtokenv2.TokenRules
 import daml.splice.testing.tokens.testtokenv2.accountconfig.AccountConfig
+import daml.splice.testing.tokens.testtokenv2.holding.Token
 
 /** Canton-backed [[AcsSource]]: reads the registry admin's ACS over the Ledger API (with
   * created-event blobs) and maps the codegen contracts to the service's domain [[Contract]]s. Runs
@@ -39,7 +43,31 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
           _.map(d => toContract(d, AccountConfigPayload(toDomainAccount(d.contract.data.account))))
         )
 
-    def lockedHoldingDisclosures(allocationCids: List[Cid]): IO[List[Disclosure]] = IO.pure(Nil)
+    /** Port of `getLockedTokensForAllocationsD`: for each named allocation, read its `Allocation`
+      * interface view to find the holdings it locked, then disclose those holdings so the settlement
+      * submission can see the admin-owned locked tokens. The holdings are disclosed via the `Token`
+      * *template* (as the Daml `queryDisclosure' @Token` does), not the `Holding` interface — an
+      * interface-filtered ACS read carries no usable template `createdEventBlob`, which the ledger
+      * rejects (`MISSING_FIELD: DisclosedContract.createdEventBlob`).
+      */
+    def lockedHoldingDisclosures(allocationCids: List[Cid]): IO[List[Disclosure]] =
+        val wanted = allocationCids.map(_.value).toSet
+        for
+            allocs <- runIO(ledger.activeWithDisclosure(Allocation.contractFilter(), admin))
+            lockedCids = allocs
+                .filter(a => wanted.contains(a.contractId))
+                .flatMap(_.contract.data.holdingCids.asScala.toList.map(_.contractId))
+                .toSet
+            holdings <- runIO(ledger.activeWithDisclosure(ContractFilter.of(Token.COMPANION), admin))
+        yield holdings.collect {
+            case h if lockedCids.contains(h.contractId) =>
+                Disclosure(
+                  TemplateId(h.templateId),
+                  Cid(h.contractId),
+                  Blob(h.createdEventBlobBase64),
+                  SynchronizerId(h.synchronizerId),
+                )
+        }
 
     private def toContract[Ct, A](d: LedgerClientCanton.Disclosed[Ct], payload: A): Contract[A] =
         Contract(
