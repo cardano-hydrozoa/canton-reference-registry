@@ -1,8 +1,8 @@
 package treasury.registry.testkit
 
-import java.time.Instant
-
 import cats.Monad
+import cats.effect.{Clock, IO}
+import cats.effect.unsafe.implicits.global
 import cats.instances.either.*
 
 import org.scalacheck.{Gen, Prop, Properties}
@@ -28,6 +28,9 @@ object Cip0112ConformanceMockTest extends Properties("cip0112-conformance-mock")
 
     private val admin = PartyId("adminTT2")
     private val parties = List(PartyId("alice"), PartyId("bob"))
+    // requestedAt is a don't-care for context assembly; source one timestamp from cats-effect's Clock
+    // (not java.time) at init rather than per generated arg.
+    private val requestedAt = Clock[IO].realTimeInstant.unsafeRunSync()
     // Match the accounts the mock's AccountConfigs carry (basicAccount = owner only, id "").
     private def domainAccount(p: PartyId): Account = Account(Some(p), None, AccountId(""))
 
@@ -66,7 +69,7 @@ object Cip0112ConformanceMockTest extends Properties("cip0112-conformance-mock")
                     TokenStandardHelpers.allocationFactoryAllocate(
                       TokenStandardHelpers.settlementInfo(List(admin), "settlement-1"),
                       TokenStandardHelpers.allocationSpec(admin, p.basicAccount, Nil, false, None),
-                      Instant.EPOCH,
+                      requestedAt,
                       List(new Holding.ContractId(holdingCid)),
                       List(admin),
                     )
