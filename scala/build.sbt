@@ -80,7 +80,16 @@ lazy val root = (project in file("."))
       "org.http4s" %% "http4s-ember-client" % http4sV % Test,
       "com.dimafeng" %% "testcontainers-scala-scalatest" % testcontainersV % Test,
       "org.slf4j" % "slf4j-simple" % "2.0.16" % Test,
+      // CIP-0112 conformance suite: ScalaCheck (pinned to match scalacheck-propertym) + PropertyM for
+      // monadic properties (JitPack; single `%` — the artifact drops the Scala `_3` suffix).
+      "org.scalacheck" %% "scalacheck" % "1.18.0" % Test,
+      "com.github.cardano-hydrozoa" % "scalacheck-propertym" % "0.1.1" % Test,
     ),
+    resolvers += "jitpack" at "https://jitpack.io",
+    // sbt 2 mis-detects forked ScalaCheck runs and drops all but the first property of a suite; route
+    // ScalaCheck through the fixed framework (see test/ScalaCheckFrameworkFixed). ScalaTest unaffected.
+    testFrameworks := testFrameworks.value.filterNot(_ == TestFrameworks.ScalaCheck) :+
+      new TestFramework("test.ScalaCheckFrameworkFixed"),
     // (specFile in registry-openapi/, generated Scala package) — the CIP-0112 registry API is split
     // per interface, each spec self-contained. Scoped to the two factory specs the treasury/swap flow
     // needs; transfer-instruction + metadata are added when a flow needs them.
