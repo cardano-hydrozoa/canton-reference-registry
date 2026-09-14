@@ -7,13 +7,13 @@ ThisBuild / organization := "com.hydrozoa"
 // OrganizeImports' removeUnused.
 ThisBuild / semanticdbEnabled := true
 
+val catsCoreV = "2.13.0"
 val catsEffectV = "3.6.3"
 // Runtime for the Daml Java codegen output (com.daml.ledger.javaapi.data.*). Daml publishes
 // immutable "snapshot" versions to Maven Central; this is the latest 3.4 line, compatible with
 // the codegen-java 3.4.x component DPM ships. Bump alongside the DARs / codegen.
 val bindingsJavaV = "3.4.0-snapshot.20250626.13943.0.v7067a3a5"
 // gRPC Ledger API client (DamlLedgerClient) for the Java bindings — Phase 2 Canton integration.
-// Same version as bindings-java.
 val bindingsRxJavaV = bindingsJavaV
 val scalatestV = "3.2.19"
 val testcontainersV = "0.43.0"
@@ -22,6 +22,7 @@ val circeV = "0.14.9"
 val http4sV = "0.23.26"
 // openapi-generator-cli: generates the CIP-0112 registry wire types (DTOs) from the vendored specs.
 val openapiGenV = "7.25.0"
+val scalacheckV = "1.18.0"
 
 // Tool-only Ivy configuration so the openapi-generator CLI (a fat jar with a large dep tree) is
 // resolved for the build's source generator but never leaks onto the compile/runtime classpath.
@@ -33,6 +34,23 @@ lazy val tokenStandardDars = settingKey[Seq[String]]("Vendored DAR filenames fed
 
 lazy val registryOpenApiSpecs =
   settingKey[Seq[(String, String)]]("(specFileName, scalaPackage) fed to openapi-generator")
+
+val commonScalacOptions = Seq(
+  "-deprecation",
+  "-feature",
+  "-unchecked",
+  "-Wunused:all",
+  // Generated code (Daml codegen, OpenAPI DTOs) under src_managed carries unused imports; don't let
+  // -Werror reject machine-generated code. Our own sources stay strict.
+  "-Wconf:src=.*src_managed.*:s",
+)
+
+// sbt 2 mis-detects forked ScalaCheck runs and drops all but the first property of a suite; route
+// ScalaCheck through the fixed framework (testkit's test.ScalaCheckFrameworkFixed). ScalaTest is
+// unaffected. Applied to every project that runs ScalaCheck Properties.
+lazy val useFixedScalaCheck: Setting[Seq[TestFramework]] =
+  testFrameworks := testFrameworks.value.filterNot(_ == TestFrameworks.ScalaCheck) :+
+    new TestFramework("test.ScalaCheckFrameworkFixed")
 
 // Locate the DPM-shipped Java codegen jar. DPM installs it as a component under ~/.dpm rather than
 // exposing a `dpm codegen` subcommand, so we resolve the jar directly: $DAML_CODEGEN_JAR wins,
@@ -51,48 +69,20 @@ def resolveDamlCodegenJar(): File =
     }
   }
 
-lazy val root = (project in file("."))
+// The interface project: the CIP-0112 RegistryApi trait + the generated on-ledger Daml bindings and
+// wire DTOs it exposes. Hydrozoa's src tree depends on this. Runs both code generators.
+lazy val api = (project in file("api"))
   .settings(
-    name := "daml-scratch-scala",
-    scalacOptions ++= Seq(
-      "-deprecation",
-      "-feature",
-      "-unchecked",
-      "-Wunused:all",
-      // Generated OpenAPI DTOs (under src_managed) carry unused imports; don't let -Werror reject
-      // machine-generated code. Our own sources stay strict.
-      "-Wconf:src=.*src_managed.*:s",
-    ),
+    name := "registry-api",
+    scalacOptions ++= commonScalacOptions,
     ivyConfigurations += OpenApiCodegen,
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-effect" % catsEffectV,
       "com.daml" % "bindings-java" % bindingsJavaV,
-      "io.circe" %% "circe-core" % circeV,
-      "io.circe" %% "circe-parser" % circeV,
-      "org.http4s" %% "http4s-ember-server" % http4sV,
-      "org.http4s" %% "http4s-circe" % http4sV,
-      "org.http4s" %% "http4s-dsl" % http4sV,
+      "org.typelevel" %% "cats-core" % catsCoreV, // Tracer's Applicative
+      "io.circe" %% "circe-core" % circeV, // generated DTO codecs
       "org.openapitools" % "openapi-generator-cli" % openapiGenV % OpenApiCodegen,
-      "org.scalatest" %% "scalatest" % scalatestV % Test,
-      // AsyncIOSpec: run cats-effect IO/Resource directly in ScalaTest (no unsafeRunSync in tests).
-      "org.typelevel" %% "cats-effect-testing-scalatest" % "1.6.0" % Test,
-      "com.daml" % "bindings-rxjava" % bindingsRxJavaV % Test,
-      "org.http4s" %% "http4s-ember-client" % http4sV % Test,
-      "com.dimafeng" %% "testcontainers-scala-scalatest" % testcontainersV % Test,
-      "org.slf4j" % "slf4j-simple" % "2.0.16" % Test,
-      // CIP-0112 conformance suite: ScalaCheck (pinned to match scalacheck-propertym) + PropertyM for
-      // monadic properties (JitPack; single `%` — the artifact drops the Scala `_3` suffix).
-      "org.scalacheck" %% "scalacheck" % "1.18.0" % Test,
-      "com.github.cardano-hydrozoa" % "scalacheck-propertym" % "0.1.1" % Test,
     ),
     resolvers += "jitpack" at "https://jitpack.io",
-    // sbt 2 mis-detects forked ScalaCheck runs and drops all but the first property of a suite; route
-    // ScalaCheck through the fixed framework (see test/ScalaCheckFrameworkFixed). ScalaTest unaffected.
-    testFrameworks := testFrameworks.value.filterNot(_ == TestFrameworks.ScalaCheck) :+
-      new TestFramework("test.ScalaCheckFrameworkFixed"),
-    // (specFile in registry-openapi/, generated Scala package) — the CIP-0112 registry API is split
-    // per interface, each spec self-contained. Scoped to the two factory specs the treasury/swap flow
-    // needs; transfer-instruction + metadata are added when a flow needs them.
     registryOpenApiSpecs := Seq(
       "allocation-instruction-v2.yaml" -> "treasury.registry.openapi.allocinstr",
       "allocation-v2.yaml" -> "treasury.registry.openapi.alloc",
@@ -105,7 +95,7 @@ lazy val root = (project in file("."))
       "splice-api-token-transfer-instruction-v2-1.0.0.dar",
       "splice-token-standard-utils-2.0.0.dar",
       // The TestTokenV2 registry implementation (TokenRules, AccountConfig, …) — the on-ledger
-      // contracts RegistryBackendLocal assembles choice contexts from and the harness deploys.
+      // contracts the reference registry assembles choice contexts from and the harness deploys.
       "splice-test-token-v2-1.0.0.dar",
     ),
     Compile / sourceGenerators += Def.uncached(Def.task {
@@ -148,12 +138,11 @@ lazy val root = (project in file("."))
     }).taskValue,
     // Generate the CIP-0112 registry wire DTOs from the vendored OpenAPI specs. We keep only the
     // `models/` (plain circe case classes); the generator's `apis/` client uses kind-projector `F[*]`
-    // syntax that needs -Ykind-projector, and is a step-7 concern — the server is hand-written over
-    // these DTOs. Regenerates only when a spec or the generator jar changes (mirrors the Daml codegen).
+    // syntax that needs -Ykind-projector — the server is hand-written over these DTOs in `impl`.
     Compile / sourceGenerators += Def.uncached(Def.task {
       val log = streams.value.log
       val toolCp = update.value.select(configurationFilter(OpenApiCodegen.name))
-      val specDir = baseDirectory.value / "registry-openapi"
+      val specDir = (ThisBuild / baseDirectory).value / "registry-openapi"
       val outBase = (Compile / sourceManaged).value / "openapi"
       val specs = registryOpenApiSpecs.value.map { case (f, pkg) => (specDir / f, pkg) }
       val missing = specs.map(_._1).filterNot(_.exists)
@@ -200,4 +189,57 @@ lazy val root = (project in file("."))
         }
       cached(specs.map(_._1).toSet).toSeq
     }).taskValue,
+  )
+
+// The reference registry implementation (pure Assemble core + AcsSource/RegistryService/LocalRegistryApi
+// + the http4s server) and the treasury / cross-registry-swap flows. Our own specs + the gated Canton
+// integration tests live in its src/test (which uses the testkit).
+lazy val impl = (project in file("impl"))
+  .dependsOn(api)
+  .settings(
+    name := "registry-impl",
+    scalacOptions ++= commonScalacOptions,
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-effect" % catsEffectV,
+      "io.circe" %% "circe-core" % circeV,
+      "io.circe" %% "circe-parser" % circeV,
+      "org.http4s" %% "http4s-ember-server" % http4sV,
+      "org.http4s" %% "http4s-circe" % http4sV,
+      "org.http4s" %% "http4s-dsl" % http4sV,
+    ),
+  )
+
+// The parametric CIP-0112 conformance suite + reusable test doubles + the ScalaCheck framework fix,
+// in src/main so Hydrozoa's test tree can consume them (with api) to conformance-test its own
+// registry. Our own specs and the gated Canton integration tests live in this module's src/test —
+// they need the doubles + suite (this module) and the reference impl, so keeping them here makes the
+// project graph linear (api <- impl <- testkit) instead of a forbidden impl<->testkit cycle.
+lazy val testkit = (project in file("testkit"))
+  .dependsOn(api, impl)
+  .settings(
+    name := "registry-testkit",
+    scalacOptions ++= commonScalacOptions,
+    resolvers += "jitpack" at "https://jitpack.io",
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-effect" % catsEffectV, // the doubles (StateT / Applicative)
+      "org.scalacheck" %% "scalacheck" % scalacheckV,
+      // PropertyM for monadic properties (JitPack; single `%` — the artifact drops the Scala suffix).
+      "com.github.cardano-hydrozoa" % "scalacheck-propertym" % "0.1.1",
+      "org.scala-sbt" % "test-interface" % "1.0", // ScalaCheckFrameworkFixed uses sbt.testing.*
+      "org.scalatest" %% "scalatest" % scalatestV % Test,
+      // AsyncIOSpec: run cats-effect IO/Resource directly in ScalaTest (no unsafeRunSync in tests).
+      "org.typelevel" %% "cats-effect-testing-scalatest" % "1.6.0" % Test,
+      "com.daml" % "bindings-rxjava" % bindingsRxJavaV % Test,
+      "org.http4s" %% "http4s-ember-client" % http4sV % Test,
+      "com.dimafeng" %% "testcontainers-scala-scalatest" % testcontainersV % Test,
+      "org.slf4j" % "slf4j-simple" % "2.0.16" % Test,
+    ),
+    useFixedScalaCheck, // our ScalaCheck suites (FrameworkSmoke, CantonConformanceProperties)
+  )
+
+lazy val root = (project in file("."))
+  .aggregate(api, impl, testkit)
+  .settings(
+    name := "daml-scratch-scala",
+    publish / skip := true,
   )
