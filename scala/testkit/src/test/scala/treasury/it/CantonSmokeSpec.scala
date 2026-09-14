@@ -18,13 +18,13 @@ import daml.splice.testing.tokens.testtokenv2.TokenRules
   * takes minutes). The gate is read from the sbt server's environment, so start a fresh server with
   * it set. On a standard Docker host: {{{CANTON_IT=1 sbt "testOnly treasury.it.CantonSmokeSpec"}}}
   *
-  * In this sandbox (very new Docker + a nixpkgs JVM) two extra knobs are needed, unrelated to the
+  * In this sandbox (very new Docker + a nixpkgs JVM) one extra knob is needed, unrelated to the
   * code: `-Dapi.version=1.44` (testcontainers' bundled docker-java negotiates API 1.32, which
-  * Docker 29 rejects — min 1.40) and `TESTCONTAINERS_RYUK_DISABLED=true`. Full recipe:
+  * Docker 29 rejects — min 1.40). Ryuk works fine once that is pinned (it starts and reaps the
+  * Canton container after the run), so it is left enabled. Full recipe:
   * {{{
   *   sbt shutdown
-  *   CANTON_IT=1 TESTCONTAINERS_RYUK_DISABLED=true JAVA_TOOL_OPTIONS=-Dapi.version=1.44 \
-  *     sbt "testOnly treasury.it.CantonSmokeSpec"
+  *   CANTON_IT=1 JAVA_TOOL_OPTIONS=-Dapi.version=1.44 sbt "testOnly treasury.it.CantonSmokeSpec"
   * }}}
   */
 class CantonSmokeSpec extends AnyFunSuite:
