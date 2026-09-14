@@ -7,7 +7,7 @@ import scala.jdk.OptionConverters.*
 import cats.data.EitherT
 import cats.effect.IO
 
-import com.daml.ledger.javaapi.data.{ActiveContract, CommandsSubmission, ContractFilter, CreatedEvent, Identifier}
+import com.daml.ledger.javaapi.data.{ActiveContract, CommandsSubmission, ContractFilter, CreatedEvent, DisclosedContract, Identifier}
 import com.daml.ledger.javaapi.data.codegen.HasCommands
 import com.daml.ledger.rxjava.DamlLedgerClient
 import io.reactivex.Single
@@ -15,6 +15,7 @@ import io.reactivex.Single
 import treasury.PartyId
 import treasury.registry.RegistryApi.Error
 
+import daml.splice.api.token.allocationinstructionv2.{AllocationFactory, AllocationFactory_Allocate}
 import daml.splice.testing.tokens.testtokenv2.TokenRules
 
 /** Canton effect: IO with the domain error in an Either base, so the flow's `MonadError[F, Error]`
@@ -89,6 +90,29 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
                 )
             }
         }
+
+    /** Exercise the `AllocationFactory_Allocate` choice on the factory contract (a `TokenRules`
+      * cid, coerced to the `AllocationFactory` interface), attaching the assembled disclosures.
+      * Succeeds (`Unit`) iff the ledger accepts the submission — the P5 acceptance check.
+      */
+    def exerciseAllocationFactory(
+        actAs: PartyId,
+        factoryCid: String,
+        arg: AllocationFactory_Allocate,
+        disclosures: List[DisclosedContract],
+    ): CantonM[Unit] =
+        val update =
+            new AllocationFactory.ContractId(factoryCid).exerciseAllocationFactory_Allocate(arg)
+        val submission = CommandsSubmission
+            .create(
+              userId,
+              UUID.randomUUID().toString,
+              Optional.empty(),
+              List[HasCommands](update).asJava
+            )
+            .withActAs(actAs.value)
+            .withDisclosedContracts(disclosures.asJava)
+        single(client.getCommandClient.submitAndWait(submission)).map(_ => ())
 
     private def submitAndWait(actAs: PartyId, cmds: List[HasCommands]): CantonM[Unit] =
         val submission = CommandsSubmission
