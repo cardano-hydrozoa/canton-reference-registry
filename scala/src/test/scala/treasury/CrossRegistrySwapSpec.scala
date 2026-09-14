@@ -6,7 +6,7 @@ import org.scalatest.funsuite.AnyFunSuite
 
 import treasury.PartyId
 import treasury.ledger.{InMemoryLedger, LedgerM, LedgerState}
-import treasury.registry.{RegistryBackendStub, Tracer}
+import treasury.registry.{RegistryApiStub, Tracer}
 
 import daml.splice.api.token.holdingv2.InstrumentId
 
@@ -35,8 +35,8 @@ class CrossRegistrySwapSpec extends AnyFunSuite:
             (env.bob, yId, BigDecimal(1000)),
           )
         )
-        val regX = new RegistryBackendStub[LedgerM](Tracer.noop)
-        val regY = new RegistryBackendStub[LedgerM](Tracer.noop)
+        val regX = new RegistryApiStub[LedgerM](Tracer.noop)
+        val regY = new RegistryApiStub[LedgerM](Tracer.noop)
         val flow = new CrossRegistrySwapFlow[LedgerM](regX, regY, InMemoryLedger)
 
         val result = flow.run(env, Instant.EPOCH).run(seed)

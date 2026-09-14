@@ -13,7 +13,7 @@ import com.daml.ledger.rxjava.DamlLedgerClient
 import io.reactivex.Single
 
 import treasury.PartyId
-import treasury.registry.RegistryBackend.Error
+import treasury.registry.RegistryApi.Error
 
 import daml.splice.testing.tokens.testtokenv2.TokenRules
 

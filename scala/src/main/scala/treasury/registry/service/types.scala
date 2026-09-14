@@ -134,7 +134,7 @@ object ContextKeys:
     val accountConfigs: String = "testTokenV2/accountConfigs"
 
 /** Errors raised by the pure assembly. Extends `RuntimeException` so the F-level service can raise
-  * it via `MonadThrow` without a wrapper (mirrors `RegistryBackend.Error`).
+  * it via `MonadThrow` without a wrapper (mirrors `RegistryApi.Error`).
   */
 enum AssembleError(val message: String) extends RuntimeException(message):
     /** Daml `getAccountConfig'` aborts when more than one config matches an account. */

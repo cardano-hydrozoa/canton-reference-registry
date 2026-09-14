@@ -11,8 +11,8 @@ import daml.splice.api.token.holdingv2.Holding
 import daml.splice.api.token.holdingv2.InstrumentId
 import treasury.ledger.LedgerClient
 import treasury.ledger.LedgerClient.SettleResult
-import treasury.registry.RegistryBackend
-import treasury.registry.RegistryBackend.Error
+import treasury.registry.RegistryApi
+import treasury.registry.RegistryApi.Error
 
 import java.time.Instant
 
@@ -35,7 +35,7 @@ final case class TreasuryEnv(
   * inline as assertions, so running this flow — here against the in-memory ledger, later against a
   * Canton localnet — verifies the same invariants at each step.
   */
-final class TreasuryFlow[F[_]](reg: RegistryBackend[F], ledger: LedgerClient[F])(using
+final class TreasuryFlow[F[_]](reg: RegistryApi[F], ledger: LedgerClient[F])(using
     F: MonadError[F, Error]
 ):
     import TokenStandardHelpers.*

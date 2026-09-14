@@ -7,7 +7,7 @@ package treasury.registry.service
   *     Phase-2 `LedgerClientCanton` machinery).
   *
   * `F` is left unconstrained here; [[RegistryService]] adds the `MonadThrow` constraint at the use
-  * site, mirroring the `RegistryBackend` decision (traits stay effect-agnostic).
+  * site, mirroring the `RegistryApi` decision (traits stay effect-agnostic).
   */
 trait AcsSource[F[_]]:
 

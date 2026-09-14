@@ -6,8 +6,8 @@ import cats.MonadError
 import cats.syntax.all.*
 
 import treasury.ledger.LedgerClient
-import treasury.registry.RegistryBackend
-import treasury.registry.RegistryBackend.Error
+import treasury.registry.RegistryApi
+import treasury.registry.RegistryApi.Error
 
 import daml.splice.api.token.allocationv2.Allocation
 import daml.splice.api.token.holdingv2.InstrumentId
@@ -35,8 +35,8 @@ final case class SwapEnv(
   * validated in the Canton integration.
   */
 final class CrossRegistrySwapFlow[F[_]](
-    regX: RegistryBackend[F],
-    regY: RegistryBackend[F],
+    regX: RegistryApi[F],
+    regY: RegistryApi[F],
     ledger: LedgerClient[F],
 )(using F: MonadError[F, Error]):
     import TokenStandardHelpers.*
@@ -63,7 +63,7 @@ final class CrossRegistrySwapFlow[F[_]](
         )
 
         def createAllocOn(
-            reg: RegistryBackend[F],
+            reg: RegistryApi[F],
             authorizer: PartyId,
             spec: daml.splice.api.token.allocationv2.AllocationSpecification,
             inputs: List[daml.splice.api.token.holdingv2.Holding.ContractId],
@@ -76,7 +76,7 @@ final class CrossRegistrySwapFlow[F[_]](
             yield cid
 
         def settleOn(
-            reg: RegistryBackend[F],
+            reg: RegistryApi[F],
             legs: List[daml.splice.api.token.allocationv2.TransferLeg],
             allocations: List[daml.splice.api.token.allocationv2.FinalizedAllocation],
         ): F[Unit] =

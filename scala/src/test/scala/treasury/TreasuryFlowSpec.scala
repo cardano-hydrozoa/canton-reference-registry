@@ -6,7 +6,7 @@ import org.scalatest.funsuite.AnyFunSuite
 
 import treasury.PartyId
 import treasury.ledger.{InMemoryLedger, LedgerM, LedgerState}
-import treasury.registry.{RegistryBackendStub, Tracer}
+import treasury.registry.{RegistryApiStub, Tracer}
 
 import daml.splice.api.token.holdingv2.InstrumentId
 
@@ -36,7 +36,7 @@ class TreasuryFlowSpec extends AnyFunSuite:
           )
         )
         val flow =
-            new TreasuryFlow[LedgerM](new RegistryBackendStub[LedgerM](Tracer.noop), InMemoryLedger)
+            new TreasuryFlow[LedgerM](new RegistryApiStub[LedgerM](Tracer.noop), InMemoryLedger)
 
         // StateT over Either: run yields Either[Error, (finalState, result)]; a Left is a failed
         // checkpoint.

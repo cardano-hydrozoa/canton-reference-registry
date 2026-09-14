@@ -6,14 +6,14 @@ import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
 import daml.splice.api.token.holdingv2.Holding
 import daml.splice.api.token.holdingv2.InstrumentId
 import treasury.PartyId
-import treasury.registry.RegistryBackend.EnrichedFactoryChoice
+import treasury.registry.RegistryApi.EnrichedFactoryChoice
 
 /** The ledger-interaction concern the Daml Script fuses into its registry helpers: submit commands,
   * read the ACS, fetch balances. Both the registry backends and the treasury flow use it. In Phase
   * 1 an in-memory fake implements it; Phase 2 swaps in a Canton gRPC client.
   *
-  * Errors live in `F` (a `MonadError[F, RegistryBackend.Error]`), not in the return values — the
-  * mock is `StateT[Either[Error, *], LedgerState, *]`, so a failed operation aborts with no state
+  * Errors live in `F` (a `MonadError[F, RegistryApi.Error]`), not in the return values — the mock
+  * is `StateT[Either[Error, *], LedgerState, *]`, so a failed operation aborts with no state
   * change. Phase 2's Canton client would be e.g. `EitherT[IO, Error, *]`.
   *
   * The exercise methods are purpose-built per factory choice rather than a single generic

@@ -1,10 +1,10 @@
 package treasury.registry
 
-/** Events emitted by a [[RegistryBackend]]. Split by implementation the way hydrozoa's
+/** Events emitted by a [[RegistryApi]]. Split by implementation the way hydrozoa's
   * `CardanoBackendEvent` is (mock- vs Blockfrost-specific), so each backend traces its own
   * concerns.
   */
-enum RegistryBackendEvent:
+enum RegistryApiEvent:
     // Stub backend (pure tests)
     case StubReturnedCannedChoice(kind: String)
 

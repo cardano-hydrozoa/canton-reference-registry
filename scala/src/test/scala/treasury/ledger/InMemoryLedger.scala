@@ -7,7 +7,7 @@ import cats.data.StateT
 
 import treasury.PartyId
 import treasury.ledger.LedgerClient.SettleResult
-import treasury.registry.RegistryBackend.{EnrichedFactoryChoice, Error}
+import treasury.registry.RegistryApi.{EnrichedFactoryChoice, Error}
 
 import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
 import daml.splice.api.token.allocationv2.{Allocation, SettlementFactory_SettleBatch, TransferSide}
