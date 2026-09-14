@@ -64,7 +64,9 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
                 .filter(a => wanted.contains(a.contractId))
                 .flatMap(_.contract.data.holdingCids.asScala.toList.map(_.contractId))
                 .toSet
-            holdings <- runIO(ledger.activeWithDisclosure(ContractFilter.of(Token.COMPANION), admin))
+            holdings <- runIO(
+              ledger.activeWithDisclosure(ContractFilter.of(Token.COMPANION), admin)
+            )
         yield holdings.collect {
             case h if lockedCids.contains(h.contractId) =>
                 Disclosure(

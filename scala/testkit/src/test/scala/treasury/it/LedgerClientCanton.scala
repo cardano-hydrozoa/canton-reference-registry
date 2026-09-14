@@ -114,7 +114,9 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
     ): CantonM[Unit] =
         submitAndWait(
           actAs,
-          List(new AllocationFactory.ContractId(factoryCid).exerciseAllocationFactory_Allocate(arg)),
+          List(
+            new AllocationFactory.ContractId(factoryCid).exerciseAllocationFactory_Allocate(arg)
+          ),
           disclosures,
         )
 
@@ -124,9 +126,9 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
     def activeAllocations(readAs: PartyId): CantonM[List[Allocation.ContractId]] =
         activeContractsOf(Allocation.contractFilter(), readAs).map(_.map(_.id))
 
-    /** Exercise `SettlementFactory_SettleBatch` on the factory contract (the `TokenRules` cid coerced
-      * to the `SettlementFactory` interface), attaching the assembled disclosures — including the
-      * allocations' locked-holding blobs. Succeeds iff the ledger accepts the batch.
+    /** Exercise `SettlementFactory_SettleBatch` on the factory contract (the `TokenRules` cid
+      * coerced to the `SettlementFactory` interface), attaching the assembled disclosures —
+      * including the allocations' locked-holding blobs. Succeeds iff the ledger accepts the batch.
       */
     def exerciseSettlementFactory(
         actAs: PartyId,
@@ -136,7 +138,9 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
     ): CantonM[Unit] =
         submitAndWait(
           actAs,
-          List(new SettlementFactory.ContractId(factoryCid).exerciseSettlementFactory_SettleBatch(arg)),
+          List(
+            new SettlementFactory.ContractId(factoryCid).exerciseSettlementFactory_SettleBatch(arg)
+          ),
           disclosures,
         )
 
@@ -161,7 +165,8 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
         val receiver = new DamlAccount(Optional.of(owner.value), Optional.empty(), "")
         val instrument = new InstrumentId(admin.value, instrumentName)
         for
-            rulesD <- activeWithDisclosure(ContractFilter.of(TokenRules.COMPANION), admin).map(_.head)
+            rulesD <- activeWithDisclosure(ContractFilter.of(TokenRules.COMPANION), admin)
+                .map(_.head)
             _ <- submitAndWait(
               admin,
               List(
@@ -263,7 +268,9 @@ object LedgerClientCanton:
     def identifierString(id: Identifier): String =
         s"${id.getPackageId}:${id.getModuleName}:${id.getEntityName}"
 
-    /** Inverse of [[identifierString]]: parse `<pkgId>:<Module>:<Entity>` back into an `Identifier`. */
+    /** Inverse of [[identifierString]]: parse `<pkgId>:<Module>:<Entity>` back into an
+      * `Identifier`.
+      */
     def parseIdentifier(s: String): Identifier =
         s.split(":") match
             case Array(pkg, module, entity) => new Identifier(pkg, module, entity)

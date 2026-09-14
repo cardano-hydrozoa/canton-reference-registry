@@ -29,8 +29,9 @@ import daml.splice.api.token.holdingv2.Holding
   *   3. `receiver` authorizes receipt (receiver-side allocation, locks nothing).
   *   4. Settlement — a *neutral* executor (owning none of the contracts) settles the batch. Because
   *      it relies entirely on the assembled disclosures, this validates
-  *      [[AcsSourceCanton.lockedHoldingDisclosures]] (the port of `getLockedTokensForAllocationsD`):
-  *      the executor can only lock/move the deposit's holdings if they were disclosed correctly.
+  *      [[AcsSourceCanton.lockedHoldingDisclosures]] (the port of
+  *      `getLockedTokensForAllocationsD`): the executor can only lock/move the deposit's holdings
+  *      if they were disclosed correctly.
   *   5. Fundless iterated pool — empty legs + `nextIterationFunding = Some(...)`, the degenerate
   *      context shape, kept as a regression on the empty-`accountConfigs` path.
   *
@@ -68,7 +69,8 @@ object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-
                     .flatMap(IO.fromEither)
             yield ()
 
-        /** getSettlementFactory (the code under test) → exercise as `actAs`; `Unit` iff accepted. */
+        /** getSettlementFactory (the code under test) → exercise as `actAs`; `Unit` iff accepted.
+          */
         def settle(actAs: PartyId, arg: SettlementFactory_SettleBatch): IO[Unit] =
             for
                 r <- impl.getSettlementFactory(arg)
@@ -124,14 +126,23 @@ object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-
           List(executor),
         )
 
-    /** A fundless iterated (pool) allocation: no legs, `nextIterationFunding = Some(...)` — locks no
-      * holdings (so `inputHoldingCids` is empty; a real ledger rejects synthetic cids).
+    /** A fundless iterated (pool) allocation: no legs, `nextIterationFunding = Some(...)` — locks
+      * no holdings (so `inputHoldingCids` is empty; a real ledger rejects synthetic cids).
       */
-    private def iteratedArg(admin: PartyId, requestedAt: java.time.Instant): AllocationFactory_Allocate =
+    private def iteratedArg(
+        admin: PartyId,
+        requestedAt: java.time.Instant
+    ): AllocationFactory_Allocate =
         TokenStandardHelpers.allocationFactoryAllocate(
           TokenStandardHelpers.settlementInfo(List(admin), "settlement-iterated"),
           TokenStandardHelpers
-              .allocationSpec(admin, admin.basicAccount, Nil, false, Some(Map.empty[String, BigDecimal])),
+              .allocationSpec(
+                admin,
+                admin.basicAccount,
+                Nil,
+                false,
+                Some(Map.empty[String, BigDecimal])
+              ),
           requestedAt,
           Nil,
           List(admin),
@@ -156,7 +167,11 @@ object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-
             parties <- Resource.eval(
               IO.blocking(
                 CantonParties
-                    .allocate("localhost", port, List("adminTT2", "senderTT2", "receiverTT2", "execTT2"))
+                    .allocate(
+                      "localhost",
+                      port,
+                      List("adminTT2", "senderTT2", "receiverTT2", "execTT2")
+                    )
               )
             )
             admin = parties("adminTT2")
@@ -185,9 +200,16 @@ object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-
         property("factory contexts assembled + exercised on a live Canton ledger (P5)") =
             PropertyM.monadicIO {
                 PropertyM.useResource(cantonEnv) { env =>
-                    val settlement = TokenStandardHelpers.settlementInfo(List(env.executor), "settle-batch")
+                    val settlement =
+                        TokenStandardHelpers.settlementInfo(List(env.executor), "settle-batch")
                     val leg = TokenStandardHelpers
-                        .transferLeg("swap", env.sender.basicAccount, env.receiver.basicAccount, BigDecimal(100), "X")
+                        .transferLeg(
+                          "swap",
+                          env.sender.basicAccount,
+                          env.receiver.basicAccount,
+                          BigDecimal(100),
+                          "X"
+                        )
                     for
                         holdings <- PropertyM.run(env.mint("X", BigDecimal(100)))
                         // funded sender-side deposit — locks the minted 100 X (allocation-factory acceptance)
@@ -221,9 +243,13 @@ object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-
                         // settle the batch as a neutral executor (settlement-factory + locked-holding
                         // disclosure acceptance) — only the two allocations above are live here
                         allocs <- PropertyM.run(env.allocationCids)
-                        _ <- PropertyM.run(env.settle(env.executor, settleArg(env.executor, settlement, leg, allocs)))
+                        _ <- PropertyM.run(
+                          env.settle(env.executor, settleArg(env.executor, settlement, leg, allocs))
+                        )
                         // fundless iterated pool — degenerate context regression
-                        _ <- PropertyM.run(env.allocate(env.admin, iteratedArg(env.admin, env.requestedAt)))
+                        _ <- PropertyM.run(
+                          env.allocate(env.admin, iteratedArg(env.admin, env.requestedAt))
+                        )
                     yield ()
                 }
             }
