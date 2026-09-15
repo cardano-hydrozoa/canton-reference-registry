@@ -23,3 +23,25 @@ trait AcsSource[F[_]]:
       * of `getLockedTokensForAllocationsD` (per-allocation `holdingCids` -> `queryDisclosure`).
       */
     def lockedHoldingDisclosures(allocationCids: List[Cid]): F[List[Disclosure]]
+
+    /** Disclose the given `Holding`/`Token` contracts by id — the reusable primitive behind
+      * [[lockedHoldingDisclosures]] and the transfer-instruction handlers' `inputHoldingCids`. Ports
+      * `queryDisclosure' @Token` over a list of cids.
+      */
+    def holdingDisclosures(holdingCids: List[Cid]): F[List[Disclosure]]
+
+    /** Read an `Allocation` interface view by cid: its authorizer account and the holdings it locked.
+      * Ports `queryInterfaceContractId @Allocation` + `.allocation.authorizer` / `.holdingCids`.
+      */
+    def allocation(cid: Cid): F[AllocationDetails]
+
+    /** Read an `AllocationInstruction` interface view by cid: its authorizer account. Ports
+      * `queryInterfaceContractId @AllocationInstruction` + `.allocation.authorizer`.
+      */
+    def allocationInstruction(cid: Cid): F[AllocationInstructionDetails]
+
+    /** Read a `TransferInstruction` interface view by cid: its sender/receiver accounts and the
+      * `inputHoldingCids` it locked. Ports `queryInterfaceContractId @TransferInstruction` +
+      * `.transfer.{sender,receiver,inputHoldingCids}`.
+      */
+    def transferInstruction(cid: Cid): F[TransferDetails]

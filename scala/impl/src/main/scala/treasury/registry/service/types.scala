@@ -41,6 +41,15 @@ final case class Instrument(admin: PartyId, id: InstrumentId)
   */
 final case class TransferLeg(sender: Account, receiver: Account)
 
+/** The fields of an on-ledger contract's interface view that the lifecycle choice-context handlers
+  * read (by contract id) to decide which accounts to assemble a context for, and which holdings to
+  * disclose. One per input contract type; ports the `queryInterfaceContractId` reads in
+  * `TestTokenV2_RegistryV2`'s `getWithdraw/Cancel/AllocationInstruction/TransferOffer` contexts.
+  */
+final case class AllocationDetails(authorizer: Account, holdingCids: List[Cid])
+final case class AllocationInstructionDetails(authorizer: Account)
+final case class TransferDetails(sender: Account, receiver: Account, inputHoldingCids: List[Cid])
+
 /** A contract id as it appears on the wire and inside `AnyValue` context values. Opaque so cids and
   * disclosure blobs (both `String`) can't be transposed.
   */

@@ -12,13 +12,14 @@ import com.google.protobuf.ByteString
 
 import treasury.PartyId
 import treasury.registry.{RegistryApi, RegistryApiEvent, Tracer}
-import treasury.registry.RegistryApi.EnrichedFactoryChoice
+import treasury.registry.RegistryApi.{EnrichedFactoryChoice, OpenApiChoiceContext}
 
-import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
-import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
+import daml.splice.api.token.allocationinstructionv2.{AllocationFactory_Allocate, AllocationInstruction}
+import daml.splice.api.token.allocationv2.{Allocation, SettlementFactory_SettleBatch}
 import daml.splice.api.token.holdingv2.Account as DamlAccount
-import daml.splice.api.token.metadatav1.{AnyContract, AnyValue, ChoiceContext, ExtraArgs}
+import daml.splice.api.token.metadatav1.{AnyContract, AnyValue, ChoiceContext, ExtraArgs, Metadata}
 import daml.splice.api.token.metadatav1.anyvalue.{AV_ContractId, AV_List}
+import daml.splice.api.token.transferinstructionv2.{TransferFactory_Transfer, TransferInstruction}
 
 /** The reference [[RegistryApi]] implementation: the CIP-0112 registry surface over a
   * [[RegistryService]]. It reads the domain params off the codegen choice argument, runs the pure
@@ -71,10 +72,73 @@ final class LocalRegistryApi[F[_]](
             EnrichedFactoryChoice(bundle.factoryId.value, withCtx, disclosuresOf(bundle))
         }
 
+    // -- Transfer factory (fan-out: cluster A) -----------------------------------------------------
+
+    /** Cluster A hole. Mirror [[getAllocationFactory]]: read sender + receiver off `arg.transfer`,
+      * assemble via `service.choiceContext(List(sender, receiver))`, rebuild `TransferFactory_Transfer`
+      * with `embedContext(arg.extraArgs, bundle)`, and return the `EnrichedFactoryChoice`
+      * (`bundle.factoryId.value`, the rebuilt arg, `disclosuresOf(bundle)`). Port of
+      * `registryApi_getTransferFactoryV2`.
+      */
+    override def getTransferFactory(
+        arg: TransferFactory_Transfer
+    ): F[EnrichedFactoryChoice[TransferFactory_Transfer]] = ???
+
+    // -- Lifecycle choice contexts (pre-wired to the RegistryService cluster recipe methods) -------
+
+    override def getAllocationWithdrawContext(
+        allocation: Allocation.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        service
+            .allocationContext(Cid(allocation.contractId), includeLocked = false)
+            .map(toOpenApiContext)
+
+    override def getAllocationCancelContext(
+        allocation: Allocation.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        service
+            .allocationContext(Cid(allocation.contractId), includeLocked = true)
+            .map(toOpenApiContext)
+
+    override def getAllocationInstructionWithdrawContext(
+        instruction: AllocationInstruction.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        service.allocationInstructionContext(Cid(instruction.contractId)).map(toOpenApiContext)
+
+    override def getAllocationInstructionAcceptContext(
+        instruction: AllocationInstruction.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        service.allocationInstructionContext(Cid(instruction.contractId)).map(toOpenApiContext)
+
+    override def getTransferInstructionAcceptContext(
+        instruction: TransferInstruction.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        service.transferInstructionContext(Cid(instruction.contractId)).map(toOpenApiContext)
+
+    override def getTransferInstructionRejectContext(
+        instruction: TransferInstruction.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        service.transferInstructionContext(Cid(instruction.contractId)).map(toOpenApiContext)
+
+    override def getTransferInstructionWithdrawContext(
+        instruction: TransferInstruction.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        service.transferInstructionContext(Cid(instruction.contractId)).map(toOpenApiContext)
+
     // -- ContextBundle -> codegen conversions ------------------------------------------------------
 
     private def embedContext(extra: ExtraArgs, bundle: ContextBundle): ExtraArgs =
         new ExtraArgs(toChoiceContext(bundle.values), extra.meta)
+
+    private def toOpenApiContext(bundle: ContextBundle): OpenApiChoiceContext =
+        OpenApiChoiceContext(toChoiceContext(bundle.values), disclosuresOf(bundle))
 
     private def toChoiceContext(values: Map[String, CtxValue]): ChoiceContext =
         new ChoiceContext(values.view.mapValues(toAnyValue).toMap.asJava)

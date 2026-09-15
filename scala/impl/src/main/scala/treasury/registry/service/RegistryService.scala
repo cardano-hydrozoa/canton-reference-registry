@@ -35,3 +35,38 @@ final class RegistryService[F[_]](src: AcsSource[F])(using F: MonadThrow[F]):
             locked <- src.lockedHoldingDisclosures(allocationCids)
             bundle <- F.fromEither(Assemble.settlementFactory(rules, configs, legs, locked))
         yield bundle
+
+    /** The shared core of every factory / lifecycle handler: read the rules + configs, then run the
+      * pure [[Assemble.contextBundle]] for `accounts` with any `extraDisclosures` appended. The
+      * transfer factory (accounts from the choice arg) and the lifecycle handlers below all build on
+      * this.
+      */
+    def choiceContext(
+        accounts: List[Account],
+        extraDisclosures: List[Disclosure] = Nil,
+    ): F[ContextBundle] =
+        for
+            rules <- src.tokenRules
+            configs <- src.accountConfigs
+            bundle <- F.fromEither(Assemble.contextBundle(rules, configs, accounts, extraDisclosures))
+        yield bundle
+
+    // -- Lifecycle choice contexts (fan-out sites; each reads a view via `src`, then `choiceContext`)
+
+    /** Cluster B — allocation lifecycle. Context for withdraw (`includeLocked = false`) or cancel
+      * (`includeLocked = true`) of allocation `cid`: assemble for its authorizer, and for cancel
+      * additionally disclose the allocation's locked holdings. Port of
+      * `getWithdrawContextV2` / `getCancelContextV2`.
+      */
+    def allocationContext(cid: Cid, includeLocked: Boolean): F[ContextBundle] = ???
+
+    /** Cluster C — allocation-instruction lifecycle. Context for withdraw/accept of instruction
+      * `cid`: assemble for its authorizer. Port of `getAllocationInstructionContextV2`.
+      */
+    def allocationInstructionContext(cid: Cid): F[ContextBundle] = ???
+
+    /** Cluster D — transfer-instruction lifecycle. Context for accept/reject/withdraw of instruction
+      * `cid`: assemble for its sender + receiver, disclosing the instruction's `inputHoldingCids`.
+      * Port of `getTransferOfferContextV2`.
+      */
+    def transferInstructionContext(cid: Cid): F[ContextBundle] = ???
