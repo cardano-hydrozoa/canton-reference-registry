@@ -5,8 +5,8 @@ import daml.splice.api.token.holdingv2.Account
 /** Effectful seam supplying the contracts the pure [[Assemble]] core needs, by reading the registry
   * admin's ACS. Two implementations:
   *   - a mock backed by in-memory maps (fast service tests, Tier-1 harness), and
-  *   - a Canton impl issuing Ledger-API ACS queries with `includeCreatedEventBlob` (reuses the
-  *     Phase-2 `LedgerClientCanton` machinery).
+  *   - a Canton impl issuing Ledger-API ACS queries with `includeCreatedEventBlob` (reuses
+  *     `LedgerClientCanton`).
   *
   * `F` is left unconstrained here; [[RegistryService]] adds the `MonadThrow` constraint at the use
   * site, mirroring the `RegistryApi` decision (traits stay effect-agnostic).

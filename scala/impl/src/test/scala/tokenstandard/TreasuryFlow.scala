@@ -34,8 +34,8 @@ final case class TreasuryEnv(
   * Alice deposits 100 X and Bob deposits 100 Y into a committed, iterated treasury allocation
   * authorized by the operator; an L2 swap happens off-ledger; the operator settles, paying Alice
   * 100 Y and Bob 100 X and closing the pool. The balance checkpoints from the Daml test are kept
-  * inline as assertions, so running this flow — here against the in-memory ledger, later against a
-  * Canton localnet — verifies the same invariants at each step.
+  * inline as assertions, so running this flow — in-memory in `TreasuryFlowSpec`, against live
+  * Canton in `CantonTreasuryFlowSpec` — verifies the same invariants at each step.
   */
 final class TreasuryFlow[F[_]](reg: RegistryApi[F], ledger: LedgerClient[F])(using
     F: MonadError[F, Error]

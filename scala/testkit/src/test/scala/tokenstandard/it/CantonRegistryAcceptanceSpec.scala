@@ -23,9 +23,9 @@ import scala.jdk.OptionConverters.*
   *
   * Runs in `IO` via `AsyncIOSpec` (the test returns `IO[Assertion]`), with the container and ledger
   * client held as `Resource`s so bracketing tears them down — no `unsafeRunSync`, no `finally`.
-  * Gated on `CANTON_IT=1` (see [[CantonSmokeSpec]] for the sandbox run recipe). This first slice
-  * uses no `AccountConfig` (the authorizer's config is absent → dropped, `accountConfigs` = empty
-  * list); account-config coverage and the full exercise-acceptance are the next slice.
+  * Gated on `CANTON_IT=1` (see [[CantonSmokeSpec]] for the sandbox run recipe). Uses no
+  * `AccountConfig` (the authorizer's config is absent → dropped, `accountConfigs` = empty list);
+  * the full exercise-acceptance lives in [[CantonConformanceProperties]] (P5).
   */
 class CantonRegistryAcceptanceSpec extends AsyncFunSuite, AsyncIOSpec:
 

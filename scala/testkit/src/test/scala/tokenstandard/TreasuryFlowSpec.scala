@@ -14,8 +14,8 @@ import tokenstandard.registry.service.*
 
 import java.time.Instant
 
-/** Phase 1 port of `Splice.Tests.TestHydrozoaTreasury.test`: the treasury allocation workflow run
-  * against the REFERENCE registry ([[LocalRegistryApi]] over an in-memory [[MockAcsSource]]) + the
+/** Port of `Splice.Tests.TestHydrozoaTreasury.test`: the treasury allocation workflow run against
+  * the REFERENCE registry ([[LocalRegistryApi]] over an in-memory [[MockAcsSource]]) + the
   * in-memory ledger, with no Canton and no effect runtime — the whole flow is a `State` transition.
   * The same flow runs live in `CantonTreasuryFlowSpec` with only the `AcsSource` and ledger
   * swapped. The flow's inline balance checkpoints do the asserting; a `Right(())` means every

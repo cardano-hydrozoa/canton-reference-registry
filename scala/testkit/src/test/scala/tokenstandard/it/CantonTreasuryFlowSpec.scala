@@ -19,7 +19,7 @@ import tokenstandard.registry.RegistryApi.Error
 import tokenstandard.registry.service.LocalRegistryApi
 import tokenstandard.registry.service.RegistryService
 
-/** The Phase-2 milestone: run the UNMODIFIED [[TreasuryFlow]] — the Scala port of
+/** End-to-end on a real ledger: run the UNMODIFIED [[TreasuryFlow]] — the Scala port of
   * `TestHydrozoaTreasury`, balance checkpoints and all — against a live Canton, with all three
   * production pieces wired together: [[LocalRegistryApi]] over [[AcsSourceCanton]] (registry) and
   * [[LedgerClientCanton]] (ledger). The very same flow code runs green over the in-memory pair in

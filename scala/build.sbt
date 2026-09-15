@@ -13,7 +13,7 @@ val catsEffectV = "3.6.3"
 // immutable "snapshot" versions to Maven Central; this is the latest 3.4 line, compatible with
 // the codegen-java 3.4.x component DPM ships. Bump alongside the DARs / codegen.
 val bindingsJavaV = "3.4.0-snapshot.20250626.13943.0.v7067a3a5"
-// gRPC Ledger API client (DamlLedgerClient) for the Java bindings — Phase 2 Canton integration.
+// gRPC Ledger API client (DamlLedgerClient) for the Java bindings — used by LedgerClientCanton.
 val bindingsRxJavaV = bindingsJavaV
 val scalatestV = "3.2.19"
 val testcontainersV = "0.43.0"

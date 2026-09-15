@@ -13,8 +13,8 @@ import tokenstandard.ledger.LedgerClientCanton
 
 import scala.jdk.CollectionConverters.*
 
-/** Phase 2 slice 1: prove the hard part — the cn-quickstart Canton image boots in Docker, uploads
-  * our DARs, and is reachable over the gRPC Ledger API via the Java-bindings `DamlLedgerClient`.
+/** Foundation smoke test: the cn-quickstart Canton image boots in Docker, uploads our DARs, and is
+  * reachable over the gRPC Ledger API via the Java-bindings `DamlLedgerClient`.
   *
   * Gated on `CANTON_IT=1` so the normal `sbt test` loop stays pure/fast (the container pull + boot
   * takes minutes). The gate is read from the sbt server's environment, so start a fresh server with
