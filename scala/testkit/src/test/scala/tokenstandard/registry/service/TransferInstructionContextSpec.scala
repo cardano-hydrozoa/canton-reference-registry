@@ -60,7 +60,7 @@ class TransferInstructionContextSpec extends AnyFunSuite:
       transferInstructions = Map(Cid("ti1") -> TransferDetails(sender, receiver, List(Cid("h1")))),
     )
     private val api: RegistryApi[ErrOr] =
-        LocalRegistryApi[ErrOr](RegistryService(mock))
+        LocalRegistryApi[ErrOr](RegistryService(mock), RegistryMetadata.basic("adminTT2", Nil))
 
     private val instr = new TransferInstruction.ContractId("ti1")
     private val meta = TokenStandardHelpers.emptyMetadata

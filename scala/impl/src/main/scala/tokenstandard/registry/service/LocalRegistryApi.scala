@@ -21,6 +21,7 @@ import daml.splice.api.token.transferinstructionv2.TransferInstruction
 import tokenstandard.registry.RegistryApi
 import tokenstandard.registry.RegistryApi.EnrichedFactoryChoice
 import tokenstandard.registry.RegistryApi.OpenApiChoiceContext
+import tokenstandard.registry.openapi.metadata.models as md
 
 import java.util.Base64
 import scala.jdk.CollectionConverters.*
@@ -34,9 +35,24 @@ import scala.jdk.CollectionConverters.*
   * factories and all seven lifecycle contexts.
   */
 final class LocalRegistryApi[F[_]](
-    service: RegistryService[F]
+    service: RegistryService[F],
+    metadata: RegistryMetadata,
 )(using F: MonadThrow[F])
     extends RegistryApi[F]:
+
+    // -- Registry metadata (static catalog, no ledger reads) --------------------------------------
+
+    override def getRegistryInfo: F[md.GetRegistryInfoResponse] = F.pure(metadata.info)
+
+    override def listInstruments(
+        pageSize: Option[Int],
+        pageToken: Option[String],
+    ): F[md.ListInstrumentsResponse] = F.pure(metadata.page(pageSize, pageToken))
+
+    override def getInstrument(instrumentId: String): F[md.Instrument] =
+        metadata
+            .instrument(instrumentId)
+            .fold(F.raiseError(RegistryApi.Error.InstrumentNotFound(instrumentId)))(F.pure)
 
     override def getAllocationFactory(
         arg: AllocationFactory_Allocate
@@ -71,14 +87,7 @@ final class LocalRegistryApi[F[_]](
             EnrichedFactoryChoice(bundle.factoryId.value, withCtx, disclosuresOf(bundle))
         }
 
-    // -- Transfer factory (fan-out: cluster A) -----------------------------------------------------
-
-    /** Cluster A hole. Mirror [[getAllocationFactory]]: read sender + receiver off `arg.transfer`,
-      * assemble via `service.choiceContext(List(sender, receiver))`, rebuild
-      * `TransferFactory_Transfer` with `embedContext(arg.extraArgs, bundle)`, and return the
-      * `EnrichedFactoryChoice` (`bundle.factoryId.value`, the rebuilt arg,
-      * `disclosuresOf(bundle)`). Port of `registryApi_getTransferFactoryV2`.
-      */
+    /** Port of `registryApi_getTransferFactoryV2`: assemble for the transfer's sender + receiver. */
     override def getTransferFactory(
         arg: TransferFactory_Transfer
     ): F[EnrichedFactoryChoice[TransferFactory_Transfer]] =

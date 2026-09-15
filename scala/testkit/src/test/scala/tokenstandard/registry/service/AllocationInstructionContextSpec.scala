@@ -51,7 +51,8 @@ class AllocationInstructionContextSpec extends AnyFunSuite:
               configs,
               allocationInstructions = Map(Cid("ai1") -> basicAuthorizer),
             )
-          )
+          ),
+          RegistryMetadata.basic("adminTT2", Nil),
         )
 
     private val meta = TokenStandardHelpers.emptyMetadata

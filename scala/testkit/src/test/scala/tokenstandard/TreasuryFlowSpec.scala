@@ -67,7 +67,10 @@ object TestRegistries:
               Blob("cnVsZXM="), // base64("rules") — disclosuresOf base64-decodes blobs
               SynchronizerId("sync-1"),
             )
-        val impl = LocalRegistryApi[ErrOr](RegistryService(MockAcsSource[ErrOr](rules, Nil)))
+        val impl = LocalRegistryApi[ErrOr](
+          RegistryService(MockAcsSource[ErrOr](rules, Nil)),
+          RegistryMetadata.basic("adminTT2", List("X", "Y")),
+        )
         RegistryApi.mapK(impl)(
           new FunctionK[ErrOr, LedgerM]:
               def apply[A](fa: ErrOr[A]): LedgerM[A] =

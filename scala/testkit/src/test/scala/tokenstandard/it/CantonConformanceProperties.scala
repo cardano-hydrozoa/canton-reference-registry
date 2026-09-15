@@ -25,6 +25,7 @@ import tokenstandard.it.CantonTestTokenOps.*
 import tokenstandard.ledger.LedgerClientCanton
 import tokenstandard.registry.RegistryApi
 import tokenstandard.registry.service.LocalRegistryApi
+import tokenstandard.registry.service.RegistryMetadata
 import tokenstandard.registry.service.RegistryService
 
 /** CIP-0112 live-ledger acceptance (P5): the reference [[LocalRegistryApi]] over a real Canton ACS
@@ -222,7 +223,10 @@ object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-
             _ <- Resource.eval(ledger.createTokenRules(admin).value.flatMap(IO.fromEither))
             requestedAt <- Resource.eval(Clock[IO].realTimeInstant)
         yield CantonEnv(
-          LocalRegistryApi[IO](RegistryService(AcsSourceCanton(ledger, admin))),
+          LocalRegistryApi[IO](
+            RegistryService(AcsSourceCanton(ledger, admin)),
+            RegistryMetadata.basic(admin.value, List("X")),
+          ),
           ledger,
           admin,
           sender,

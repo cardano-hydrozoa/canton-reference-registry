@@ -10,6 +10,7 @@ import org.scalatest.funsuite.AsyncFunSuite
 import tokenstandard.PartyId
 import tokenstandard.TokenStandardHelpers
 import tokenstandard.TokenStandardHelpers.basicAccount
+import tokenstandard.registry.RegistryApi
 import tokenstandard.registry.service.*
 
 import java.time.Instant
@@ -53,9 +54,12 @@ class RegistryClientRoundTripSpec extends AsyncFunSuite, AsyncIOSpec:
     private def holdingDisc(cidTag: String): Disclosure =
         Disclosure(tid("Holding"), Cid(cidTag), Blob(b64(cidTag)), SynchronizerId("sync-1"))
 
-    private def backend(svc: RegistryService[IO]): RegistryBackendHttp[IO] =
+    private def backend(
+        svc: RegistryService[IO],
+        metadata: RegistryMetadata = RegistryMetadata.basic("adminTT2", Nil),
+    ): RegistryBackendHttp[IO] =
         RegistryBackendHttp[IO](
-          Client.fromHttpApp(RegistryRoutes[IO](svc).routes.orNotFound),
+          Client.fromHttpApp(RegistryRoutes[IO](svc, metadata).routes.orNotFound),
           uri"http://registry.example",
         )
 
@@ -102,3 +106,25 @@ class RegistryClientRoundTripSpec extends AsyncFunSuite, AsyncIOSpec:
               ec.disclosures.map(_.contractId) == List("rules", "cfg-alice", "cfg-bob", "locked-1")
             )
         }
+
+    test("metadata endpoints round-trip: info, paged instrument list, lookup, 404"):
+        val svc = RegistryService(MockAcsSource[IO](rules, Nil))
+        val api = backend(svc, RegistryMetadata.basic("adminTT2", List("X", "Y", "Z")))
+        for
+            info <- api.getRegistryInfo
+            page1 <- api.listInstruments(pageSize = Some(2), pageToken = None)
+            page2 <- api.listInstruments(pageSize = Some(2), pageToken = page1.nextPageToken)
+            x <- api.getInstrument("X")
+            missing <- api.getInstrument("nope").attempt
+        yield
+            assert(info.adminId == "adminTT2")
+            assert(info.supportedApis.contains("splice-api-token-metadata-v1"))
+            assert(page1.instruments.map(_.id) == Seq("X", "Y"))
+            assert(page1.nextPageToken.contains("Y"))
+            assert(page2.instruments.map(_.id) == Seq("Z"))
+            assert(page2.nextPageToken.isEmpty)
+            assert(x.id == "X" && x.decimals == 10)
+            assert(missing.left.exists {
+                case RegistryApi.Error.InstrumentNotFound("nope") => true
+                case _                                            => false
+            })

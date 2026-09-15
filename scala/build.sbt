@@ -93,6 +93,7 @@ lazy val api = (project in file("api"))
       registryOpenApiSpecs := Seq(
         "allocation-instruction-v2.yaml" -> "tokenstandard.registry.openapi.allocinstr",
         "allocation-v2.yaml" -> "tokenstandard.registry.openapi.alloc",
+        "metadata-v1.yaml" -> "tokenstandard.registry.openapi.metadata",
       ),
       tokenStandardDars := Seq(
         "splice-api-token-metadata-v1-1.0.0.dar",

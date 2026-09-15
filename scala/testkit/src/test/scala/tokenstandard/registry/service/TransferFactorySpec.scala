@@ -56,7 +56,7 @@ class TransferFactorySpec extends AnyFunSuite:
 
     test("getTransferFactory embeds the assembled context and returns the rules cid as factoryCid"):
         val svc = RegistryService(MockAcsSource[ErrOr](rules, Nil))
-        val api = LocalRegistryApi[ErrOr](svc)
+        val api = LocalRegistryApi[ErrOr](svc, RegistryMetadata.basic("adminTT2", Nil))
 
         val enriched =
             api.getTransferFactory(arg).fold(err => fail(s"unexpected error: $err"), identity)

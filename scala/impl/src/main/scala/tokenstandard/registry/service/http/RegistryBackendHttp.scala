@@ -18,6 +18,7 @@ import io.circe.Json
 import io.circe.parser
 import org.http4s.Method
 import org.http4s.Request
+import org.http4s.Status
 import org.http4s.Uri
 import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.client.Client
@@ -26,6 +27,7 @@ import tokenstandard.registry.RegistryApi.EnrichedFactoryChoice
 import tokenstandard.registry.RegistryApi.OpenApiChoiceContext
 import tokenstandard.registry.openapi.alloc.models as al
 import tokenstandard.registry.openapi.allocinstr.models as ai
+import tokenstandard.registry.openapi.metadata.models as md
 
 import java.util.Base64
 import scala.jdk.CollectionConverters.*
@@ -196,6 +198,35 @@ final class RegistryBackendHttp[F[_]: Concurrent](
               "choice-contexts" / "withdraw",
           meta,
         )
+
+    // -- Registry metadata -------------------------------------------------------------------------
+
+    override def getRegistryInfo: F[md.GetRegistryInfoResponse] =
+        client.expect[md.GetRegistryInfoResponse](
+          baseUri / "registry" / "metadata" / "v1" / "info"
+        )
+
+    override def listInstruments(
+        pageSize: Option[Int],
+        pageToken: Option[String],
+    ): F[md.ListInstrumentsResponse] =
+        client.expect[md.ListInstrumentsResponse](
+          (baseUri / "registry" / "metadata" / "v1" / "instruments")
+              .withOptionQueryParam("pageSize", pageSize)
+              .withOptionQueryParam("pageToken", pageToken)
+        )
+
+    override def getInstrument(instrumentId: String): F[md.Instrument] =
+        val uri = baseUri / "registry" / "metadata" / "v1" / "instruments" / instrumentId
+        client.run(Request[F](Method.GET, uri)).use { resp =>
+            if resp.status == Status.NotFound then
+                Concurrent[F].raiseError(RegistryApi.Error.InstrumentNotFound(instrumentId))
+            else if resp.status.isSuccess then resp.as[md.Instrument]
+            else
+                resp.as[String].flatMap { body =>
+                    Concurrent[F].raiseError(RegistryApi.Error.Http(resp.status.code, body))
+                }
+        }
 
     // -- response -> EnrichedFactoryChoice / OpenApiChoiceContext -----------------------------------
 

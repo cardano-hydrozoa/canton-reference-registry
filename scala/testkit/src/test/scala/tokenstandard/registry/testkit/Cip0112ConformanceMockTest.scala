@@ -73,7 +73,7 @@ object Cip0112ConformanceMockTest extends Properties("cip0112-conformance-mock")
       ),
     )
     private val impl: RegistryApi[EitherT] =
-        LocalRegistryApi[EitherT](RegistryService(mock))
+        LocalRegistryApi[EitherT](RegistryService(mock), RegistryMetadata.basic("adminTT2", Nil))
     private val meta = TokenStandardHelpers.emptyMetadata
 
     // -- endpoint args -----------------------------------------------------------------------------

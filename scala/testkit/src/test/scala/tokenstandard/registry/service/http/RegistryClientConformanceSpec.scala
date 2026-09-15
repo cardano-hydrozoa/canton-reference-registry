@@ -73,7 +73,12 @@ class RegistryClientConformanceSpec extends AsyncFunSuite, AsyncIOSpec:
     )
     private val client: RegistryBackendHttp[IO] =
         RegistryBackendHttp[IO](
-          Client.fromHttpApp(RegistryRoutes[IO](svc).routes.orNotFound),
+          Client.fromHttpApp(
+            RegistryRoutes[IO](
+              svc,
+              RegistryMetadata.basic("adminTT2", List("X", "Y"))
+            ).routes.orNotFound
+          ),
           uri"http://registry.example",
         )
 

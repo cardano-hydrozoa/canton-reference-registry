@@ -7,21 +7,40 @@ import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.dsl.Http4sDsl
 import tokenstandard.registry.openapi.alloc.models as al
 import tokenstandard.registry.openapi.allocinstr.models as ai
+import tokenstandard.registry.openapi.metadata.models as md
 import tokenstandard.registry.service.*
 
-/** http4s routes serving the CIP-0112 registry endpoints the treasury / cross-registry swap flow
-  * exercises, backed by a [[RegistryService]]:
-  *   - the three factories (transfer / allocation / settlement), and
-  *   - the seven allocation- / transfer-instruction lifecycle choice contexts.
+/** http4s routes serving the CIP-0112 registry endpoints, backed by a [[RegistryService]] (ledger
+  * reads + context assembly) and a [[RegistryMetadata]] (the static catalog):
+  *   - the three factories (transfer / allocation / settlement),
+  *   - the seven allocation- / transfer-instruction lifecycle choice contexts, and
+  *   - the three metadata-v1 endpoints (registry info, instrument list/lookup).
   *
   * The response DTOs are generated per-spec (identical shapes in distinct packages: `ai` =
-  * allocation-instruction, `al` = allocation); there is no transfer-instruction spec, so the
-  * transfer routes reuse `ai`. Each factory route maps [[ContextBundle]] into a
+  * allocation-instruction, `al` = allocation, `md` = metadata); there is no transfer-instruction
+  * spec, so the transfer routes reuse `ai`. Each factory route maps [[ContextBundle]] into a
   * `FactoryWithChoiceContext`; each lifecycle route maps it into a `ChoiceContext` (no factory id).
   */
-final class RegistryRoutes[F[_]: Concurrent](svc: RegistryService[F]) extends Http4sDsl[F]:
+final class RegistryRoutes[F[_]: Concurrent](svc: RegistryService[F], metadata: RegistryMetadata)
+    extends Http4sDsl[F]:
+
+    private object PageSize extends OptionalQueryParamDecoderMatcher[Int]("pageSize")
+    private object PageToken extends OptionalQueryParamDecoderMatcher[String]("pageToken")
 
     val routes: HttpRoutes[F] = HttpRoutes.of[F] {
+        // -- Registry metadata ---------------------------------------------------------------------
+        case GET -> Root / "registry" / "metadata" / "v1" / "info" =>
+            Ok(metadata.info)
+
+        case GET -> Root / "registry" / "metadata" / "v1" / "instruments"
+            :? PageSize(pageSize) +& PageToken(pageToken) =>
+            Ok(metadata.page(pageSize, pageToken))
+
+        case GET -> Root / "registry" / "metadata" / "v1" / "instruments" / instrumentId =>
+            metadata
+                .instrument(instrumentId)
+                .fold(NotFound(md.ErrorResponse(s"instrument not found: $instrumentId")))(Ok(_))
+
         // -- Factories -----------------------------------------------------------------------------
         case req @ POST -> Root / "registry" / "transfer-instruction" / "v2" / "transfer-factory" =>
             for

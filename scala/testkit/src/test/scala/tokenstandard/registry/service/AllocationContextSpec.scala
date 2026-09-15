@@ -54,7 +54,7 @@ class AllocationContextSpec extends AnyFunSuite:
       holdings = Map(Cid("h1") -> aHoldingDisclosure),
     )
     private val impl =
-        LocalRegistryApi[ErrOr](RegistryService(src))
+        LocalRegistryApi[ErrOr](RegistryService(src), RegistryMetadata.basic("adminTT2", Nil))
 
     private val expectedKeys = Set(ContextKeys.tokenRules, ContextKeys.accountConfigs)
     private val meta = TokenStandardHelpers.emptyMetadata

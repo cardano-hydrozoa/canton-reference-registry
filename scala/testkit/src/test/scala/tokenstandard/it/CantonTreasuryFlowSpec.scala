@@ -17,6 +17,7 @@ import tokenstandard.ledger.LedgerClientCanton
 import tokenstandard.registry.RegistryApi
 import tokenstandard.registry.RegistryApi.Error
 import tokenstandard.registry.service.LocalRegistryApi
+import tokenstandard.registry.service.RegistryMetadata
 import tokenstandard.registry.service.RegistryService
 
 /** End-to-end on a real ledger: run the UNMODIFIED [[TreasuryFlow]] — the Scala port of
@@ -82,7 +83,10 @@ class CantonTreasuryFlowSpec extends AsyncFunSuite, AsyncIOSpec:
                   hydrozoa = parties("hydrozoaTF"),
                 )
                 val registry = RegistryApi.mapK(
-                  LocalRegistryApi[IO](RegistryService(AcsSourceCanton(ledger, env.admin)))
+                  LocalRegistryApi[IO](
+                    RegistryService(AcsSourceCanton(ledger, env.admin)),
+                    RegistryMetadata.basic(env.admin.value, List("X", "Y")),
+                  )
                 )(liftIO)
                 val flow = new TreasuryFlow[CantonM](registry, ledger)
                 for

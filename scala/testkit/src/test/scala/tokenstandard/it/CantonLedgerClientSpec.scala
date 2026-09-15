@@ -15,6 +15,7 @@ import tokenstandard.ledger.CantonM
 import tokenstandard.ledger.LedgerClient
 import tokenstandard.ledger.LedgerClientCanton
 import tokenstandard.registry.service.LocalRegistryApi
+import tokenstandard.registry.service.RegistryMetadata
 import tokenstandard.registry.service.RegistryService
 
 /** Live-Canton acceptance for the [[LedgerClient]] surface itself: every call goes through the
@@ -64,7 +65,10 @@ class CantonLedgerClientSpec extends AsyncFunSuite, AsyncIOSpec:
         setup
             .use { (admin: PartyId, owner: PartyId, ledger: LedgerClientCanton) =>
                 val lc: LedgerClient[CantonM] = ledger
-                val impl = LocalRegistryApi[IO](RegistryService(AcsSourceCanton(ledger, admin)))
+                val impl = LocalRegistryApi[IO](
+                  RegistryService(AcsSourceCanton(ledger, admin)),
+                  RegistryMetadata.basic(admin.value, List("X")),
+                )
                 val instrument = TokenStandardHelpers.instrumentId(admin, "X")
                 for
                     requestedAt <- Clock[IO].realTimeInstant

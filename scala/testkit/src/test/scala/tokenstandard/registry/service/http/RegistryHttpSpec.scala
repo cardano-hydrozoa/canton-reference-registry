@@ -52,7 +52,9 @@ class RegistryHttpSpec extends AsyncFunSuite, AsyncIOSpec:
     private val bob = acct("acc-bob", "bob")
 
     private def client(svc: RegistryService[IO]): Client[IO] =
-        Client.fromHttpApp(RegistryRoutes[IO](svc).routes.orNotFound)
+        Client.fromHttpApp(
+          RegistryRoutes[IO](svc, RegistryMetadata.basic("adminTT2", Nil)).routes.orNotFound
+        )
 
     // Guards the build.sbt post-processing that strips openapi-generator's rogue Json codecs: a
     // free-form choiceArguments object must round-trip as embedded JSON, not an escaped string.

@@ -10,6 +10,7 @@ import daml.splice.api.token.metadatav1.ChoiceContext
 import daml.splice.api.token.metadatav1.Metadata
 import daml.splice.api.token.transferinstructionv2.TransferFactory_Transfer
 import daml.splice.api.token.transferinstructionv2.TransferInstruction
+import tokenstandard.registry.openapi.metadata.models as md
 
 /** Off-ledger registry API of a CIP-0112 token-standard registry — the Scala port of Daml's
   * `Splice.Testing.TokenStandard.RegistryApiV2.RegistryApi` typeclass, listing the complete set of
@@ -81,6 +82,20 @@ trait RegistryApi[F[_]]:
         meta: Metadata,
     ): F[OpenApiChoiceContext]
 
+    // -- Registry metadata (metadata-v1) -----------------------------------------------------------
+    // Static catalog data, no choice contexts — these have no Daml counterpart (the OpenAPI schema
+    // is the authoritative definition), hence the generated wire DTOs as return types.
+
+    def getRegistryInfo: F[md.GetRegistryInfoResponse]
+
+    /** `pageToken` is the `nextPageToken` from the previous page (the last instrument id). */
+    def listInstruments(
+        pageSize: Option[Int],
+        pageToken: Option[String],
+    ): F[md.ListInstrumentsResponse]
+
+    def getInstrument(instrumentId: String): F[md.Instrument]
+
 object RegistryApi:
 
     /** Daml's `EnrichedFactoryChoice`: the factory contract to exercise on, the choice argument
@@ -108,36 +123,67 @@ object RegistryApi:
       */
     def mapK[F[_], G[_]](underlying: RegistryApi[F])(fk: FunctionK[F, G]): RegistryApi[G] =
         new RegistryApi[G]:
-            def getTransferFactory(arg: TransferFactory_Transfer) =
+            def getTransferFactory(
+                arg: TransferFactory_Transfer
+            ): G[EnrichedFactoryChoice[TransferFactory_Transfer]] =
                 fk(underlying.getTransferFactory(arg))
-            def getAllocationFactory(arg: AllocationFactory_Allocate) =
+            def getAllocationFactory(
+                arg: AllocationFactory_Allocate
+            ): G[EnrichedFactoryChoice[AllocationFactory_Allocate]] =
                 fk(underlying.getAllocationFactory(arg))
-            def getSettlementFactory(arg: SettlementFactory_SettleBatch) =
+            def getSettlementFactory(
+                arg: SettlementFactory_SettleBatch
+            ): G[EnrichedFactoryChoice[SettlementFactory_SettleBatch]] =
                 fk(underlying.getSettlementFactory(arg))
-            def getAllocationWithdrawContext(allocation: Allocation.ContractId, meta: Metadata) =
+            def getAllocationWithdrawContext(
+                allocation: Allocation.ContractId,
+                meta: Metadata
+            ): G[OpenApiChoiceContext] =
                 fk(underlying.getAllocationWithdrawContext(allocation, meta))
-            def getAllocationCancelContext(allocation: Allocation.ContractId, meta: Metadata) =
+            def getAllocationCancelContext(
+                allocation: Allocation.ContractId,
+                meta: Metadata
+            ): G[OpenApiChoiceContext] =
                 fk(underlying.getAllocationCancelContext(allocation, meta))
             def getAllocationInstructionWithdrawContext(
                 instruction: AllocationInstruction.ContractId,
                 meta: Metadata,
-            ) = fk(underlying.getAllocationInstructionWithdrawContext(instruction, meta))
+            ): G[OpenApiChoiceContext] = fk(
+              underlying.getAllocationInstructionWithdrawContext(instruction, meta)
+            )
             def getAllocationInstructionAcceptContext(
                 instruction: AllocationInstruction.ContractId,
                 meta: Metadata,
-            ) = fk(underlying.getAllocationInstructionAcceptContext(instruction, meta))
+            ): G[OpenApiChoiceContext] = fk(
+              underlying.getAllocationInstructionAcceptContext(instruction, meta)
+            )
             def getTransferInstructionAcceptContext(
                 instruction: TransferInstruction.ContractId,
                 meta: Metadata,
-            ) = fk(underlying.getTransferInstructionAcceptContext(instruction, meta))
+            ): G[OpenApiChoiceContext] = fk(
+              underlying.getTransferInstructionAcceptContext(instruction, meta)
+            )
             def getTransferInstructionRejectContext(
                 instruction: TransferInstruction.ContractId,
                 meta: Metadata,
-            ) = fk(underlying.getTransferInstructionRejectContext(instruction, meta))
+            ): G[OpenApiChoiceContext] = fk(
+              underlying.getTransferInstructionRejectContext(instruction, meta)
+            )
             def getTransferInstructionWithdrawContext(
                 instruction: TransferInstruction.ContractId,
                 meta: Metadata,
-            ) = fk(underlying.getTransferInstructionWithdrawContext(instruction, meta))
+            ): G[OpenApiChoiceContext] = fk(
+              underlying.getTransferInstructionWithdrawContext(instruction, meta)
+            )
+            def getRegistryInfo: G[md.GetRegistryInfoResponse] = fk(underlying.getRegistryInfo)
+            def listInstruments(
+                pageSize: Option[Int],
+                pageToken: Option[String]
+            ): G[md.ListInstrumentsResponse] =
+                fk(underlying.listInstruments(pageSize, pageToken))
+            def getInstrument(instrumentId: String): G[md.Instrument] = fk(
+              underlying.getInstrument(instrumentId)
+            )
 
     enum Error(val message: String) extends RuntimeException(message):
         case FactoryNotFound(what: String) extends Error(s"factory not found: $what")
@@ -145,4 +191,6 @@ object RegistryApi:
         case Http(status: Int, body: String) extends Error(s"registry HTTP $status: $body")
         case Decode(detail: String) extends Error(s"decode failure: $detail")
         case NotImplemented(endpoint: String) extends Error(s"endpoint not implemented: $endpoint")
+        case InstrumentNotFound(instrumentId: String)
+            extends Error(s"instrument not found: $instrumentId")
         case Unexpected(detail: String) extends Error(detail)

@@ -57,7 +57,7 @@ final class RegistryService[F[_]](src: AcsSource[F])(using F: MonadThrow[F]):
             )
         yield bundle
 
-    // -- Lifecycle choice contexts (fan-out sites; each reads a view via `src`, then `choiceContext`)
+    // -- Lifecycle choice contexts (each reads a view via `src`, then `choiceContext`) ------------
 
     /** Cluster B — allocation lifecycle. Context for withdraw (`includeLocked = false`) or cancel
       * (`includeLocked = true`) of allocation `cid`: assemble for its authorizer, and for cancel

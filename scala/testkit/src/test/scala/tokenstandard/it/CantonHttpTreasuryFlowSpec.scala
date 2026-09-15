@@ -22,6 +22,7 @@ import tokenstandard.ledger.CantonM
 import tokenstandard.ledger.LedgerClientCanton
 import tokenstandard.registry.RegistryApi
 import tokenstandard.registry.RegistryApi.Error
+import tokenstandard.registry.service.RegistryMetadata
 import tokenstandard.registry.service.RegistryService
 import tokenstandard.registry.service.http.RegistryBackendHttp
 import tokenstandard.registry.service.http.RegistryRoutes
@@ -47,12 +48,15 @@ class CantonHttpTreasuryFlowSpec extends AsyncFunSuite, AsyncIOSpec:
         )
 
     /** The registry service served over HTTP on an ephemeral port; yields its base URI. */
-    private def registryServer(svc: RegistryService[IO]): Resource[IO, Uri] =
+    private def registryServer(
+        svc: RegistryService[IO],
+        metadata: RegistryMetadata,
+    ): Resource[IO, Uri] =
         EmberServerBuilder
             .default[IO]
             .withHost(host"127.0.0.1")
             .withPort(port"0")
-            .withHttpApp(RegistryRoutes[IO](svc).routes.orNotFound)
+            .withHttpApp(RegistryRoutes[IO](svc, metadata).routes.orNotFound)
             .build
             .map(_.baseUri)
 
@@ -83,7 +87,8 @@ class CantonHttpTreasuryFlowSpec extends AsyncFunSuite, AsyncIOSpec:
                 )
                 ledger <- ledgerClient("localhost", port)
                 baseUri <- registryServer(
-                  RegistryService(AcsSourceCanton(ledger, parties("adminHF")))
+                  RegistryService(AcsSourceCanton(ledger, parties("adminHF"))),
+                  RegistryMetadata.basic(parties("adminHF").value, List("X", "Y")),
                 )
                 httpClient <- EmberClientBuilder.default[IO].build
             yield (parties, ledger, baseUri, httpClient)
