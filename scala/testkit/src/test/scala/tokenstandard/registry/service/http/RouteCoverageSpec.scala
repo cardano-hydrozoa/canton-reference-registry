@@ -8,6 +8,7 @@ import org.http4s.Request
 import org.http4s.Status
 import org.http4s.Uri
 import org.scalatest.funsuite.AsyncFunSuite
+import tokenstandard.TokenStandardHelpers.basicAccount
 import tokenstandard.registry.service.*
 
 import java.nio.file.Files
@@ -33,11 +34,21 @@ class RouteCoverageSpec extends AsyncFunSuite, AsyncIOSpec:
           SynchronizerId("sync-1")
         )
 
-    // Catalog contains the substituted instrument id "x" so /instruments/{instrumentId} answers
-    // 200, not a semantic 404.
+    // Every substituted "{param}" value ("x") resolves in the fixtures — the catalog holds
+    // instrument "x" and the mock ACS holds cid "x" for each by-cid read — so a routed endpoint
+    // never answers a semantic 404 and the ≠404 check below discriminates cleanly.
+    private val acct = tokenstandard.PartyId("p").basicAccount
     private val app =
         RegistryRoutes[IO](
-          RegistryService(MockAcsSource[IO](rules, Nil)),
+          RegistryService(
+            MockAcsSource[IO](
+              rules,
+              Nil,
+              allocations = Map(Cid("x") -> AllocationDetails(acct, Nil)),
+              allocationInstructions = Map(Cid("x") -> acct),
+              transferInstructions = Map(Cid("x") -> TransferDetails(acct, acct, Nil)),
+            )
+          ),
           RegistryMetadata.basic("adminTT2", List("x")),
         ).routes.orNotFound
 

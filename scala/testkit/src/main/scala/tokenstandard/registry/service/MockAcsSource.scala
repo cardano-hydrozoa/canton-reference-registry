@@ -3,6 +3,7 @@ package tokenstandard.registry.service
 import cats.Applicative
 import cats.syntax.all.*
 import daml.splice.api.token.holdingv2.Account
+import tokenstandard.registry.RegistryApi
 
 /** In-memory [[AcsSource]] for service tests, generic over any `Applicative[F]` (never errors — the
   * only registry error, a duplicate account config, arises in [[Assemble]] and is raised by
@@ -10,8 +11,9 @@ import daml.splice.api.token.holdingv2.Account
   * http4s test.
   *
   * The by-cid maps (`locked`, `holdings`, `allocations`, `allocationInstructions`,
-  * `transferInstructions`) stand in for the ledger reads; a lookup miss is a test-setup bug, so it
-  * throws directly (the mock has no error channel in `F`).
+  * `transferInstructions`) stand in for the ledger reads; a lookup miss throws
+  * `Error.ContractNotFound` directly (the mock has no error channel in `F`) — the same error the
+  * Canton source raises, so the HTTP layer's 404 mapping is exercised by mock-backed tests too.
   */
 final class MockAcsSource[F[_]: Applicative](
     rules: Contract[TokenRulesPayload],
@@ -23,6 +25,8 @@ final class MockAcsSource[F[_]: Applicative](
     transferInstructions: Map[Cid, TransferDetails] = Map.empty[Cid, TransferDetails],
 ) extends AcsSource[F]:
 
+    private def miss(cid: Cid): Nothing = throw RegistryApi.Error.ContractNotFound(cid.value)
+
     def tokenRules: F[Contract[TokenRulesPayload]] = rules.pure[F]
 
     def accountConfigs: F[List[Contract[AccountConfigPayload]]] = configs.pure[F]
@@ -31,17 +35,17 @@ final class MockAcsSource[F[_]: Applicative](
         allocationCids.flatMap(cid => locked.getOrElse(cid, Nil)).pure[F]
 
     def holdingDisclosures(holdingCids: List[Cid]): F[List[Disclosure]] =
-        holdingCids.map(cid => holdings.getOrElse(cid, sys.error(s"mock: no holding $cid"))).pure[F]
+        holdingCids.map(cid => holdings.getOrElse(cid, miss(cid))).pure[F]
 
     def allocation(cid: Cid): F[AllocationDetails] =
-        allocations.getOrElse(cid, sys.error(s"mock: no allocation $cid")).pure[F]
+        allocations.getOrElse(cid, miss(cid)).pure[F]
 
     def allocationInstruction(cid: Cid): F[Account] =
         allocationInstructions
-            .getOrElse(cid, sys.error(s"mock: no allocation instruction $cid"))
+            .getOrElse(cid, miss(cid))
             .pure[F]
 
     def transferInstruction(cid: Cid): F[TransferDetails] =
         transferInstructions
-            .getOrElse(cid, sys.error(s"mock: no transfer instruction $cid"))
+            .getOrElse(cid, miss(cid))
             .pure[F]

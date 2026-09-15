@@ -12,6 +12,7 @@ import daml.splice.testing.tokens.testtokenv2.holding.Token
 import tokenstandard.PartyId
 import tokenstandard.ledger.CantonM
 import tokenstandard.ledger.LedgerClientCanton
+import tokenstandard.registry.RegistryApi
 import tokenstandard.registry.service.*
 
 import scala.jdk.CollectionConverters.*
@@ -116,7 +117,7 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
             ds.find(_.contractId == cid.value)
                 .fold(
                   IO.raiseError[LedgerClientCanton.Disclosed[Ct]](
-                    new RuntimeException(s"contract not found by id: ${cid.value}")
+                    RegistryApi.Error.ContractNotFound(cid.value)
                   )
                 )(IO.pure)
         }

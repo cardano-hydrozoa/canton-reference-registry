@@ -1,11 +1,16 @@
 package tokenstandard.registry.service.http
 
+import cats.data.OptionT
 import cats.effect.Concurrent
 import cats.syntax.all.*
 import daml.splice.api.token.holdingv2.Account
+import io.circe.DecodingFailure
 import org.http4s.HttpRoutes
+import org.http4s.MessageFailure
+import org.http4s.Response
 import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.dsl.Http4sDsl
+import tokenstandard.registry.RegistryApi
 import tokenstandard.registry.openapi.alloc.models as al
 import tokenstandard.registry.openapi.allocinstr.models as ai
 import tokenstandard.registry.openapi.metadata.models as md
@@ -30,7 +35,15 @@ final class RegistryRoutes[F[_]: Concurrent](svc: RegistryService[F], metadata: 
     private object PageSize extends OptionalQueryParamDecoderMatcher[Int]("pageSize")
     private object PageToken extends OptionalQueryParamDecoderMatcher[String]("pageToken")
 
-    val routes: HttpRoutes[F] = HttpRoutes.of[F] {
+    /** The served routes, with every failure mapped to the specs' error model (an `ErrorResponse`
+      * body): malformed bodies / `choiceArguments` → 400, unknown contract or instrument → 404, a
+      * duplicate account config → 409, anything else → 500.
+      */
+    val routes: HttpRoutes[F] = HttpRoutes[F] { req =>
+        OptionT(handlers.run(req).value.handleErrorWith(t => errorResponse(t).map(Some(_))))
+    }
+
+    private val handlers: HttpRoutes[F] = HttpRoutes.of[F] {
         // -- Registry metadata ---------------------------------------------------------------------
         case GET -> Root / "registry" / "metadata" / "v1" / "info" =>
             Ok(metadata.info)
@@ -116,6 +129,17 @@ final class RegistryRoutes[F[_]: Concurrent](svc: RegistryService[F], metadata: 
             svc.transferInstructionContext(Cid(transferInstructionId))
                 .flatMap(b => Ok(toContext(b)))
     }
+
+    private def errorResponse(t: Throwable): F[Response[F]] =
+        def body(msg: String) = ai.ErrorResponse(msg) // identical shape across the specs
+        t match
+            case e: RegistryApi.Error.ContractNotFound   => NotFound(body(e.message))
+            case e: RegistryApi.Error.InstrumentNotFound => NotFound(body(e.message))
+            case e: AssembleError.DuplicateAccountConfig => Conflict(body(e.message))
+            case e: MessageFailure                       => BadRequest(body(e.getMessage))
+            case e: DecodingFailure                      =>
+                BadRequest(body(s"malformed choiceArguments: ${e.getMessage}"))
+            case e => InternalServerError(body(Option(e.getMessage).getOrElse(e.toString)))
 
     private def toAiFactory(b: ContextBundle): ai.FactoryWithChoiceContext =
         ai.FactoryWithChoiceContext(

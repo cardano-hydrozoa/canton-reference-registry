@@ -193,4 +193,5 @@ object RegistryApi:
         case NotImplemented(endpoint: String) extends Error(s"endpoint not implemented: $endpoint")
         case InstrumentNotFound(instrumentId: String)
             extends Error(s"instrument not found: $instrumentId")
+        case ContractNotFound(cid: String) extends Error(s"contract not found: $cid")
         case Unexpected(detail: String) extends Error(detail)

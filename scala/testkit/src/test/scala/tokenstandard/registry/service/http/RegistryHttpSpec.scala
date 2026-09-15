@@ -133,3 +133,53 @@ class RegistryHttpSpec extends AsyncFunSuite, AsyncIOSpec:
             assert(offer.factoryId == "rules")
             assert(offer.transferKind == tr.TransferFactoryWithChoiceContextTransferKind.Offer)
             assert(self.transferKind == tr.TransferFactoryWithChoiceContextTransferKind.Self)
+
+    // -- Error model (the specs' ErrorResponse + status codes) ---------------------------------
+
+    test("malformed choiceArguments → 400 with an ErrorResponse body"):
+        val svc = RegistryService(MockAcsSource[IO](rules, Nil))
+        val req =
+            Request[IO](Method.POST, uri"/registry/allocation-instruction/v2/allocation-factory")
+                .withEntity(ai.GetFactoryRequest(choiceArguments = Json.obj()))
+        client(svc)
+            .run(req)
+            .use { resp =>
+                resp.as[ai.ErrorResponse].map(body => (resp.status, body))
+            }
+            .asserting { (status, body) =>
+                assert(status == Status.BadRequest)
+                assert(body.error.nonEmpty)
+            }
+
+    test("unknown contract id on a context endpoint → 404 with an ErrorResponse body"):
+        val svc = RegistryService(MockAcsSource[IO](rules, Nil))
+        val req = Request[IO](
+          Method.POST,
+          uri"/registry/allocations/v2/nope/choice-contexts/withdraw"
+        )
+        client(svc)
+            .run(req)
+            .use { resp =>
+                resp.as[ai.ErrorResponse].map(body => (resp.status, body))
+            }
+            .asserting { (status, body) =>
+                assert(status == Status.NotFound)
+                assert(body.error.contains("nope"))
+            }
+
+    test("duplicate account config → 409 with an ErrorResponse body"):
+        val dup = cfg("cfgA", alice)
+        val svc = RegistryService(MockAcsSource[IO](rules, List(dup, dup.copy(cid = Cid("cfgB")))))
+        val ca = Json.obj("allocation" -> Json.obj("authorizer" -> acctJson(alice)))
+        val req =
+            Request[IO](Method.POST, uri"/registry/allocation-instruction/v2/allocation-factory")
+                .withEntity(ai.GetFactoryRequest(choiceArguments = ca))
+        client(svc)
+            .run(req)
+            .use { resp =>
+                resp.as[ai.ErrorResponse].map(body => (resp.status, body))
+            }
+            .asserting { (status, body) =>
+                assert(status == Status.Conflict)
+                assert(body.error.nonEmpty)
+            }
