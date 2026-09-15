@@ -1,7 +1,9 @@
 package treasury.it
 
-import java.nio.file.Paths
+import java.nio.file.{Files, Path, Paths}
 import java.time.Duration
+
+import scala.jdk.CollectionConverters.*
 
 import com.dimafeng.testcontainers.GenericContainer
 import org.testcontainers.containers.wait.strategy.Wait
@@ -19,9 +21,19 @@ object CantonContainer:
     /** Ledger API port from app.conf (participant1.ledger-api.port). */
     val LedgerApiPort = 5011
 
-    /** Vendored DARs live in the sibling daml/ project; tests run with cwd = scala/. */
-    private def darsHostPath: String =
-        Paths.get(sys.props("user.dir"), "..", "daml", "dars", "vendored").normalize.toString
+    /** Vendored DARs live in the sibling daml/ project; tests run with cwd = scala/. Each entry is
+      * a symlink into the nix store (daml/nix/link-vendored.sh) — resolve to the real path when
+      * mounting: testcontainers' MountableFile can't tar a symlink entry, and /nix/store isn't
+      * visible inside the container.
+      */
+    private def vendoredDars: List[Path] =
+        val dir = Paths.get(sys.props("user.dir"), "..", "daml", "dars", "vendored").normalize
+        val stream = Files.list(dir)
+        val dars =
+            try stream.iterator.asScala.filter(_.toString.endsWith(".dar")).toList.sorted
+            finally stream.close()
+        require(dars.nonEmpty, s"no vendored DARs in $dir — enter the devShell to link them")
+        dars
 
     def apply(): GenericContainer =
         GenericContainer(
@@ -39,6 +51,11 @@ object CantonContainer:
               MountableFile.forClasspathResource("canton/bootstrap.sc"),
               "/app/bootstrap.sc"
             )
-            c.withCopyFileToContainer(MountableFile.forHostPath(darsHostPath), "/app/dars")
+            vendoredDars.foreach { p =>
+                c.withCopyFileToContainer(
+                  MountableFile.forHostPath(p.toRealPath()),
+                  s"/app/dars/${p.getFileName}"
+                )
+            }
             ()
         }

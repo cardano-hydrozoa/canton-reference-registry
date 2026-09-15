@@ -16,5 +16,11 @@
     {
       devShells.daml = import ./nix/shell.nix { inherit pkgs; };
       packages.canton = pkgs.canton;
+      # Vendored token-standard DARs / sources / OpenAPI specs, built from pinned splice source
+      # (replaces committed blobs). The devShell symlinks its output into the repo; see nix/shell.nix.
+      packages.vendored-splice = import ./nix/vendored.nix {
+        inherit pkgs;
+        inherit (pkgs) dpm;
+      };
     };
 }

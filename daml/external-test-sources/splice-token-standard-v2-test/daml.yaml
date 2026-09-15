@@ -3,13 +3,13 @@ name: splice-token-standard-v2-test
 description: |
   Vendored test infrastructure for the Canton Network Token Standard V2 (CIP-0112).
 
-  Copied verbatim from hyperledger-labs/splice @ tag 0.6.11
+  The daml/ source is a verbatim copy of canton-network/splice @ tag 0.6.11
   (token-standard/splice-token-standard-v2-test) per that package's own
   instruction: it must be consumed by copying the source into the downstream
-  project, since Daml Script code cannot be shared via .dar across SDKs.
-
-  The data-dependency DARs below were built from the same splice tag and live in
-  ../../dars/vendored/ (see that dir's README for provenance/build steps).
+  project, since Daml Script code cannot be shared via .dar across SDKs. That
+  source (and the data-dependency DARs below) is produced from the pin by
+  nix/vendored.nix and symlinked in on devShell entry — gitignored; only this
+  daml.yaml is tracked here. See ../../dars/vendored/README.md for provenance.
 
   Worked iterated-settlement example: daml/Splice/Tests/TestIteratedSettlement.daml
 version: 1.0.0

@@ -43,6 +43,8 @@
     {
       devShells.scala = pkgs.mkShell {
         JAVA_OPTS = "-Xmx4g -Xss512m -XX:+UseG1GC";
+        # Lay down the pinned vendored DARs / OpenAPI specs the build consumes (../daml/nix/vendored.nix).
+        shellHook = "${pkgs.bash}/bin/bash ${../daml/nix/link-vendored.sh}";
         # This fixes bash prompt/autocomplete issues with subshells (i.e. in VSCode) under `nix develop`/direnv
         buildInputs = [ pkgs.bashInteractive ];
         packages = with pkgs; [

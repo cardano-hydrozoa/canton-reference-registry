@@ -1,36 +1,41 @@
 # Vendored DARs — Canton Network Token Standard (V1 + V2 / CIP-0112)
 
-These `.dar` files are checked in as `data-dependencies` (see `../../daml.yaml`),
-following the approach recommended in the CN app-dev docs
+These `.dar` files are the `data-dependencies` of the daml/ and scala/ builds (see
+`../../daml.yaml`), following the CN app-dev docs
 ([m3 — building & packaging](https://docs.canton.network/appdev/modules/m3-building-packaging)):
-there is no public package registry for these, and DARs are small and change
-infrequently, so we vendor them.
+there is no public package registry for these, so we vendor them.
+
+**They are not committed.** The `*.dar` here are gitignored symlinks into the nix
+store, laid down on devShell entry by `../../nix/link-vendored.sh`. The source of
+truth is the `vendored-splice` derivation (`../../nix/vendored.nix`), which builds
+them from pinned splice source — see below. Only this README is tracked.
 
 ## Provenance
 
-Built from source at **[hyperledger-labs/splice](https://github.com/hyperledger-labs/splice) tag `0.6.11`**,
-directory `token-standard/`. Tag `0.6.11` is the first Splice release to ship the
-V2 (CIP-0112) token-standard packages, and matches the `SPLICE_VERSION` pinned by
-`cn-quickstart`.
+Built from source at **[canton-network/splice](https://github.com/canton-network/splice) tag `0.6.11`**
+(commit `fd93f86ac`; formerly `hyperledger-labs/splice`), directories `token-standard/`
+and `daml/`. Tag `0.6.11` is the first Splice release to ship the V2 (CIP-0112)
+token-standard packages, and matches the `SPLICE_VERSION` pinned by `cn-quickstart`.
 
-All packages are built with `--target=2.1` (Daml-LF 2.1), so the daml-scratch
-SDK 3.4.11 / Canton 3.5.15 toolchain reads them without an SDK bump.
+All packages target Daml-LF 2.1 (`--target=2.1`) and are built with dpm (SDK 3.5.2),
+the toolchain the daml/ devShell provides.
 
-## How they were produced
+## How they are produced
 
-```sh
-# sparse, blobless checkout of just the token-standard tree
-git clone --filter=blob:none --sparse https://github.com/hyperledger-labs/splice.git
-cd splice && git sparse-checkout set token-standard && git checkout 0.6.11
-cd token-standard
+`nix/vendored.nix` fetches the pinned splice tree and `dpm build`s the packages in
+dependency order (symlinking `<pkg>-current.dar` after each so the packages' own
+`daml.yaml` data-dependencies resolve unmodified). The build needs no network (dpm's
+component cache is baked into the `dpm` nix package); only the source fetch does.
 
-# build each package in dependency order with dpm (SDK 3.5.2), symlinking
-# `<pkg>-current.dar` after each build so the packages' own daml.yaml
-# data-dependencies (which reference `-current.dar`) resolve unmodified.
-# See scratch build loop; burn-mint-v1 is an empty stub in 0.6.11 and is skipped.
-```
+The output is byte-for-byte identical to the previously-committed set. To rebuild or
+inspect it directly: `nix build .#vendored-splice`. To bump the pin, change `rev` in
+`nix/vendored.nix` and update its `hash` (nix will report the expected value).
 
-The resulting `.daml/dist/<pkg>-<version>.dar` files were copied here.
+> Build note — the reproducibility subtlety the derivation encodes: splice's own
+> `daml/dars/` ships *prebuilt* API DARs whose package-ids differ from a fresh local
+> build. The token-standard API packages + `splice-util` are built fresh and overwrite
+> those, but `splice-api-featured-app-v1/-v2` are left as the prebuilt DARs — rebuilding
+> them fresh changes their package-ids and breaks amulet/wallet/v1-test reproducibility.
 
 ## Contents
 
@@ -51,9 +56,8 @@ compatibility rules) depend on both major versions.
 ## Harness DARs (for the vendored iterated-settlement test)
 
 These back `../../external-test-sources/splice-token-standard-v2-test/` — the real
-splice `splice-token-standard-v2-test` package (whose source is vendored there, per
-its own "copy the source into the downstream project" instruction). All built from
-the same splice `0.6.11` tree.
+splice `splice-token-standard-v2-test` package (whose source is likewise vendored via
+the derivation, per its own "copy the source into the downstream project" instruction).
 
 | Package | Ver | Notes |
 |---|---|---|
@@ -64,10 +68,5 @@ the same splice `0.6.11` tree.
 | splice-test-token-v1 / -v2 | 1.0.0 | reference `TestToken` registry implementations |
 | splice-token-test-trading-app | 1.0.2 | OTC/DvP trading app (V1) |
 | splice-token-test-trading-app-v2 | 1.0.0 | OTC/DvP trading app (V2) |
-
-> Build note: `daml/dars/` in the splice tree ships prebuilt API DARs whose
-> package-ids differ from a fresh local build. To avoid "same unit id, conflicting
-> package id" errors, the whole set here was built together from source with the
-> freshly-built API DARs used consistently everywhere.
 
 Run the worked example with `just ts-iterated` (see the repo justfile).

@@ -38,6 +38,11 @@ code:
 clean:
   dpm clean
 
+# (Re)build the pinned vendored DARs / v2-test source / OpenAPI specs (nix/vendored.nix) and
+# symlink them into place. The devShell runs this on entry; run it by hand after bumping the pin.
+vendor:
+  bash nix/link-vendored.sh
+
 # --- Token Standard V2 (CIP-0112) vendored test harness -----------------------
 # The real splice test package (splice-token-standard-v2-test), vendored under
 # external-test-sources/ with its DARs in dars/vendored/. See its daml.yaml.

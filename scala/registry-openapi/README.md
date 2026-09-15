@@ -1,6 +1,10 @@
 # Vendored token-standard OpenAPI specs (CIP-0112, V2)
 
-Source: `hyperledger-labs/splice`, `main`, `token-standard/splice-api-token-*/openapi/`.
+Source: `canton-network/splice` tag `0.6.11`, `token-standard/splice-api-token-*/openapi/`
+(`metadata-v1.yaml` is that tag's `token-metadata-v1.yaml`, renamed). Like the vendored
+DARs, these `*.yaml` are **not committed** — they are gitignored symlinks into the nix
+store, produced by the `vendored-splice` derivation (`../../daml/nix/vendored.nix`) and
+laid down on devShell entry. Only this README is tracked.
 
 The registry off-ledger API is **not one spec** — it is split per interface, each file
 self-contained (schemas like `ChoiceContext`/`DisclosedContract` are duplicated per file
