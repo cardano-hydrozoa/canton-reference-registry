@@ -1,18 +1,12 @@
 package tokenstandard.it
 
+import cats.arrow.FunctionK
 import cats.data.EitherT
 import cats.effect.Clock
 import cats.effect.IO
 import cats.effect.Resource
 import cats.effect.testing.scalatest.AsyncIOSpec
 import com.dimafeng.testcontainers.GenericContainer
-import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
-import daml.splice.api.token.allocationinstructionv2.AllocationInstruction
-import daml.splice.api.token.allocationv2.Allocation
-import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
-import daml.splice.api.token.metadatav1.Metadata
-import daml.splice.api.token.transferinstructionv2.TransferFactory_Transfer
-import daml.splice.api.token.transferinstructionv2.TransferInstruction
 import org.scalatest.funsuite.AsyncFunSuite
 import tokenstandard.PartyId
 import tokenstandard.TreasuryEnv
@@ -21,9 +15,7 @@ import tokenstandard.it.CantonTestTokenOps.*
 import tokenstandard.ledger.CantonM
 import tokenstandard.ledger.LedgerClientCanton
 import tokenstandard.registry.RegistryApi
-import tokenstandard.registry.RegistryApi.EnrichedFactoryChoice
 import tokenstandard.registry.RegistryApi.Error
-import tokenstandard.registry.RegistryApi.OpenApiChoiceContext
 import tokenstandard.registry.service.LocalRegistryApi
 import tokenstandard.registry.service.RegistryService
 
@@ -34,7 +26,7 @@ import tokenstandard.registry.service.RegistryService
   * `TreasuryFlowSpec`; this proves the ports are interchangeable.
   *
   * The registry stack runs in `IO` (see [[AcsSourceCanton]] for why not `CantonM`), the ledger in
-  * `CantonM`; the flow needs one `F`, so [[RegistryApiCanton]] lifts the registry into `CantonM`.
+  * `CantonM`; the flow needs one `F`, so `RegistryApi.mapK` lifts the registry into `CantonM`.
   * Gated on `CANTON_IT=1` (see [[CantonSmokeSpec]] for the sandbox run recipe).
   */
 class CantonTreasuryFlowSpec extends AsyncFunSuite, AsyncIOSpec:
@@ -54,60 +46,12 @@ class CantonTreasuryFlowSpec extends AsyncFunSuite, AsyncIOSpec:
     /** Lift the IO-based reference registry into the flow's `CantonM` (RegistryApi errors pass
       * through; anything else is wrapped as `Unexpected`).
       */
-    private final class RegistryApiCanton(underlying: RegistryApi[IO]) extends RegistryApi[CantonM]:
-        private def lift[A](io: IO[A]): CantonM[A] =
-            EitherT(io.attempt.map(_.left.map {
+    private val liftIO: FunctionK[IO, CantonM] = new FunctionK[IO, CantonM]:
+        def apply[A](fa: IO[A]): CantonM[A] =
+            EitherT(fa.attempt.map(_.left.map {
                 case e: Error => e
                 case t        => Error.Unexpected(Option(t.getMessage).getOrElse(t.toString))
             }))
-
-        override def getTransferFactory(
-            arg: TransferFactory_Transfer
-        ): CantonM[EnrichedFactoryChoice[TransferFactory_Transfer]] =
-            lift(underlying.getTransferFactory(arg))
-        override def getAllocationFactory(
-            arg: AllocationFactory_Allocate
-        ): CantonM[EnrichedFactoryChoice[AllocationFactory_Allocate]] =
-            lift(underlying.getAllocationFactory(arg))
-        override def getSettlementFactory(
-            arg: SettlementFactory_SettleBatch
-        ): CantonM[EnrichedFactoryChoice[SettlementFactory_SettleBatch]] =
-            lift(underlying.getSettlementFactory(arg))
-        override def getAllocationWithdrawContext(
-            allocation: Allocation.ContractId,
-            meta: Metadata,
-        ): CantonM[OpenApiChoiceContext] =
-            lift(underlying.getAllocationWithdrawContext(allocation, meta))
-        override def getAllocationCancelContext(
-            allocation: Allocation.ContractId,
-            meta: Metadata,
-        ): CantonM[OpenApiChoiceContext] =
-            lift(underlying.getAllocationCancelContext(allocation, meta))
-        override def getAllocationInstructionWithdrawContext(
-            instruction: AllocationInstruction.ContractId,
-            meta: Metadata,
-        ): CantonM[OpenApiChoiceContext] =
-            lift(underlying.getAllocationInstructionWithdrawContext(instruction, meta))
-        override def getAllocationInstructionAcceptContext(
-            instruction: AllocationInstruction.ContractId,
-            meta: Metadata,
-        ): CantonM[OpenApiChoiceContext] =
-            lift(underlying.getAllocationInstructionAcceptContext(instruction, meta))
-        override def getTransferInstructionAcceptContext(
-            instruction: TransferInstruction.ContractId,
-            meta: Metadata,
-        ): CantonM[OpenApiChoiceContext] =
-            lift(underlying.getTransferInstructionAcceptContext(instruction, meta))
-        override def getTransferInstructionRejectContext(
-            instruction: TransferInstruction.ContractId,
-            meta: Metadata,
-        ): CantonM[OpenApiChoiceContext] =
-            lift(underlying.getTransferInstructionRejectContext(instruction, meta))
-        override def getTransferInstructionWithdrawContext(
-            instruction: TransferInstruction.ContractId,
-            meta: Metadata,
-        ): CantonM[OpenApiChoiceContext] =
-            lift(underlying.getTransferInstructionWithdrawContext(instruction, meta))
 
     test("TreasuryFlow (port of TestHydrozoaTreasury) runs green on live Canton"):
         assume(
@@ -137,9 +81,9 @@ class CantonTreasuryFlowSpec extends AsyncFunSuite, AsyncIOSpec:
                   bob = parties("bobTF"),
                   hydrozoa = parties("hydrozoaTF"),
                 )
-                val registry = RegistryApiCanton(
+                val registry = RegistryApi.mapK(
                   LocalRegistryApi[IO](RegistryService(AcsSourceCanton(ledger, env.admin)))
-                )
+                )(liftIO)
                 val flow = new TreasuryFlow[CantonM](registry, ledger)
                 for
                     now <- Clock[IO].realTimeInstant

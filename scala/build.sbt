@@ -44,10 +44,9 @@ val commonScalacOptions = Seq(
   // Generated code (Daml codegen, OpenAPI DTOs) under src_managed carries unused imports; don't let
   // -Werror reject machine-generated code. Our own sources stay strict.
   "-Wconf:src=.*src_managed.*:s",
-  // Two implementations take interface-required params they deliberately ignore: RegistryApiStub's
-  // lifecycle-context stubs never run in the flows, and InMemoryLedger has total visibility (its
-  // actAs/readAs/as/disclosures are accepted for signature parity, not enforced). Silence only there.
-  "-Wconf:msg=unused explicit parameter&src=.*(RegistryApiStub|InMemoryLedger)\\.scala:s",
+  // InMemoryLedger has total visibility: its actAs/readAs/as/disclosures params are accepted for
+  // signature parity with a live client, not enforced. Silence the unused-param warning only there.
+  "-Wconf:msg=unused explicit parameter&src=.*InMemoryLedger\\.scala:s",
 )
 
 // sbt 2 mis-detects forked ScalaCheck runs and drops all but the first property of a suite; route

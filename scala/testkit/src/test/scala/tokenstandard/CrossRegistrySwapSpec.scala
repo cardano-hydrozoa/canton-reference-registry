@@ -6,14 +6,13 @@ import tokenstandard.PartyId
 import tokenstandard.ledger.InMemoryLedger
 import tokenstandard.ledger.LedgerM
 import tokenstandard.ledger.LedgerState
-import tokenstandard.registry.RegistryApiStub
 
 import java.time.Instant
 
 /** Scala port of `Splice.Tests.TestHydrozoaCrossRegistrySwap`: an atomic cross-registry swap run
-  * against the pure stub registries + in-memory ledger. Two registries (distinct admins) each back
-  * one instrument; the operator settles the X↔Y swap. `Right(())` means every balance checkpoint
-  * held.
+  * against two in-memory reference registries + the in-memory ledger. Two registries (distinct
+  * admins, distinct `TokenRules`) each back one instrument; the operator settles the X↔Y swap.
+  * `Right(())` means every balance checkpoint held.
   */
 class CrossRegistrySwapSpec extends AnyFunSuite:
 
@@ -35,8 +34,8 @@ class CrossRegistrySwapSpec extends AnyFunSuite:
             (env.bob, yId, BigDecimal(1000)),
           )
         )
-        val regX = new RegistryApiStub[LedgerM]
-        val regY = new RegistryApiStub[LedgerM]
+        val regX = TestRegistries.inMemory("rules-x")
+        val regY = TestRegistries.inMemory("rules-y")
         val flow = new CrossRegistrySwapFlow[LedgerM](regX, regY, InMemoryLedger)
 
         val result = flow.run(env, Instant.EPOCH).run(seed)

@@ -1,5 +1,6 @@
 package tokenstandard.registry
 
+import cats.arrow.FunctionK
 import com.daml.ledger.javaapi.data.DisclosedContract
 import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
 import daml.splice.api.token.allocationinstructionv2.AllocationInstruction
@@ -100,6 +101,43 @@ object RegistryApi:
         choiceContext: ChoiceContext,
         disclosures: List[DisclosedContract],
     )
+
+    /** Interpret an implementation into another effect via `fk` — e.g. lift the IO-based reference
+      * registry into a flow's `MonadError[G, Error]` effect (Canton's `EitherT[IO, Error, *]`, the
+      * in-memory `StateT`) by attempting/absorbing the error channel inside `fk`.
+      */
+    def mapK[F[_], G[_]](underlying: RegistryApi[F])(fk: FunctionK[F, G]): RegistryApi[G] =
+        new RegistryApi[G]:
+            def getTransferFactory(arg: TransferFactory_Transfer) =
+                fk(underlying.getTransferFactory(arg))
+            def getAllocationFactory(arg: AllocationFactory_Allocate) =
+                fk(underlying.getAllocationFactory(arg))
+            def getSettlementFactory(arg: SettlementFactory_SettleBatch) =
+                fk(underlying.getSettlementFactory(arg))
+            def getAllocationWithdrawContext(allocation: Allocation.ContractId, meta: Metadata) =
+                fk(underlying.getAllocationWithdrawContext(allocation, meta))
+            def getAllocationCancelContext(allocation: Allocation.ContractId, meta: Metadata) =
+                fk(underlying.getAllocationCancelContext(allocation, meta))
+            def getAllocationInstructionWithdrawContext(
+                instruction: AllocationInstruction.ContractId,
+                meta: Metadata,
+            ) = fk(underlying.getAllocationInstructionWithdrawContext(instruction, meta))
+            def getAllocationInstructionAcceptContext(
+                instruction: AllocationInstruction.ContractId,
+                meta: Metadata,
+            ) = fk(underlying.getAllocationInstructionAcceptContext(instruction, meta))
+            def getTransferInstructionAcceptContext(
+                instruction: TransferInstruction.ContractId,
+                meta: Metadata,
+            ) = fk(underlying.getTransferInstructionAcceptContext(instruction, meta))
+            def getTransferInstructionRejectContext(
+                instruction: TransferInstruction.ContractId,
+                meta: Metadata,
+            ) = fk(underlying.getTransferInstructionRejectContext(instruction, meta))
+            def getTransferInstructionWithdrawContext(
+                instruction: TransferInstruction.ContractId,
+                meta: Metadata,
+            ) = fk(underlying.getTransferInstructionWithdrawContext(instruction, meta))
 
     enum Error(val message: String) extends RuntimeException(message):
         case FactoryNotFound(what: String) extends Error(s"factory not found: $what")
