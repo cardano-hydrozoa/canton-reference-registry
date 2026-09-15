@@ -8,6 +8,8 @@ import com.daml.ledger.rxjava.DamlLedgerClient
 import com.dimafeng.testcontainers.GenericContainer
 import daml.splice.testing.tokens.testtokenv2.TokenRules
 import org.scalatest.funsuite.AsyncFunSuite
+import tokenstandard.it.CantonTestTokenOps.*
+import tokenstandard.ledger.LedgerClientCanton
 
 import scala.jdk.CollectionConverters.*
 

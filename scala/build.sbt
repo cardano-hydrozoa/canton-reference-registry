@@ -227,6 +227,8 @@ lazy val impl = (project in file("impl"))
       scalacOptions ++= commonScalacOptions,
       libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect" % catsEffectV,
+        // gRPC Ledger API client (DamlLedgerClient) — LedgerClientCanton, the live LedgerClient.
+        "com.daml" % "bindings-rxjava" % bindingsRxJavaV,
         "io.circe" %% "circe-core" % circeV,
         "io.circe" %% "circe-parser" % circeV,
         "org.http4s" %% "http4s-ember-server" % http4sV,
@@ -258,7 +260,6 @@ lazy val testkit = (project in file("testkit"))
         "org.scalatest" %% "scalatest" % scalatestV % Test,
         // AsyncIOSpec: run cats-effect IO/Resource directly in ScalaTest (no unsafeRunSync in tests).
         "org.typelevel" %% "cats-effect-testing-scalatest" % "1.6.0" % Test,
-        "com.daml" % "bindings-rxjava" % bindingsRxJavaV % Test,
         "org.http4s" %% "http4s-ember-client" % http4sV % Test,
         "com.dimafeng" %% "testcontainers-scala-scalatest" % testcontainersV % Test,
         "org.slf4j" % "slf4j-simple" % "2.0.16" % Test,

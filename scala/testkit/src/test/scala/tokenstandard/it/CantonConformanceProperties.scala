@@ -5,9 +5,12 @@ import cats.effect.IO
 import cats.effect.Resource
 import cats.effect.unsafe.implicits.global
 import cats.syntax.all.*
+import daml.splice.api.token.allocationinstructionv2.AllocationFactory
 import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
 import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.allocationv2.SettlementFactory
 import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
+import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatchResult
 import daml.splice.api.token.allocationv2.SettlementInfo
 import daml.splice.api.token.allocationv2.TransferLeg
 import daml.splice.api.token.holdingv2.Holding
@@ -18,6 +21,8 @@ import org.scalacheck.YetAnotherProperties
 import tokenstandard.PartyId
 import tokenstandard.TokenStandardHelpers
 import tokenstandard.TokenStandardHelpers.basicAccount
+import tokenstandard.it.CantonTestTokenOps.*
+import tokenstandard.ledger.LedgerClientCanton
 import tokenstandard.registry.RegistryApi
 import tokenstandard.registry.service.LocalRegistryApi
 import tokenstandard.registry.service.RegistryService
@@ -63,28 +68,51 @@ object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-
         executor: PartyId,
         requestedAt: java.time.Instant,
     ):
-        /** getAllocationFactory (the code under test) → exercise on the ledger as `actAs`; `Unit`
-          * iff the ledger accepts.
+        /** getAllocationFactory (the code under test) → generic [[LedgerClient.exercise]] as
+          * `actAs`. The typed choice result must be `Completed`; its allocation cid is returned —
+          * live-testing the exercise-result path, not just ledger acceptance.
           */
-        def allocate(actAs: PartyId, arg: AllocationFactory_Allocate): IO[Unit] =
+        def allocate(actAs: PartyId, arg: AllocationFactory_Allocate): IO[Allocation.ContractId] =
             for
                 r <- impl.getAllocationFactory(arg)
-                _ <- ledger
-                    .exerciseAllocationFactory(actAs, r.factoryCid, r.arg, r.disclosures)
+                ex <- ledger
+                    .exercise(
+                      actAs,
+                      Nil,
+                      new AllocationFactory.ContractId(r.factoryCid)
+                          .exerciseAllocationFactory_Allocate(r.arg),
+                      r.disclosures,
+                    )
                     .value
                     .flatMap(IO.fromEither)
-            yield ()
+                cid <- IO.fromEither(
+                  TokenStandardHelpers
+                      .completedAllocation(ex.exerciseResult)
+                      .left
+                      .map(new RuntimeException(_))
+                )
+            yield cid
 
-        /** getSettlementFactory (the code under test) → exercise as `actAs`; `Unit` iff accepted.
+        /** getSettlementFactory (the code under test) → generic [[LedgerClient.exercise]] as
+          * `actAs`, returning the typed batch result.
           */
-        def settle(actAs: PartyId, arg: SettlementFactory_SettleBatch): IO[Unit] =
+        def settle(
+            actAs: PartyId,
+            arg: SettlementFactory_SettleBatch,
+        ): IO[SettlementFactory_SettleBatchResult] =
             for
                 r <- impl.getSettlementFactory(arg)
-                _ <- ledger
-                    .exerciseSettlementFactory(actAs, r.factoryCid, r.arg, r.disclosures)
+                ex <- ledger
+                    .exercise(
+                      actAs,
+                      Nil,
+                      new SettlementFactory.ContractId(r.factoryCid)
+                          .exerciseSettlementFactory_SettleBatch(r.arg),
+                      r.disclosures,
+                    )
                     .value
                     .flatMap(IO.fromEither)
-            yield ()
+            yield ex.exerciseResult
 
         /** Mint into the `sender` party (a non-admin regular account, as the reference does — the
           * mint's TIA_Accept needs both accounts' parties, which degenerates if receiver == admin).
@@ -92,9 +120,13 @@ object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-
         def mint(instrument: String, amount: BigDecimal): IO[List[Holding.ContractId]] =
             ledger.mint(admin, sender, instrument, amount, requestedAt).value.flatMap(IO.fromEither)
 
-        /** The Allocation cids currently on the ledger (as seen by the admin). */
+        /** The live Allocation cids authorized by `sender` and `receiver` (as seen by the admin).
+          */
         def allocationCids: IO[List[Allocation.ContractId]] =
-            ledger.activeAllocations(admin).value.flatMap(IO.fromEither)
+            (for
+                s <- ledger.activeAllocations(admin, sender)
+                r <- ledger.activeAllocations(admin, receiver)
+            yield s ++ r).value.flatMap(IO.fromEither)
 
     /** A single-shot allocation authorizing (and, for the sender side, locking `inputs` behind) one
       * side of `leg`. `admin` is the registry/instrument admin recorded in the spec; the authorizer
@@ -246,8 +278,15 @@ object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-
                         // settle the batch as a neutral executor (settlement-factory + locked-holding
                         // disclosure acceptance) — only the two allocations above are live here
                         allocs <- PropertyM.run(env.allocationCids)
-                        _ <- PropertyM.run(
+                        settleRes <- PropertyM.run(
                           env.settle(env.executor, settleArg(env.executor, settlement, leg, allocs))
+                        )
+                        _ <- PropertyM.run(
+                          IO.raiseError(
+                            new RuntimeException(
+                              s"expected 2 allocation settle results, got: $settleRes"
+                            )
+                          ).unlessA(settleRes.allocationSettleResults.size == 2)
                         )
                         // fundless iterated pool — degenerate context regression
                         _ <- PropertyM.run(

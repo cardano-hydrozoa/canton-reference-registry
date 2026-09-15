@@ -6,6 +6,8 @@ import cats.effect.testing.scalatest.AsyncIOSpec
 import com.dimafeng.testcontainers.GenericContainer
 import daml.splice.api.token.holdingv2.Account
 import org.scalatest.funsuite.AsyncFunSuite
+import tokenstandard.it.CantonTestTokenOps.*
+import tokenstandard.ledger.LedgerClientCanton
 import tokenstandard.registry.service.*
 import tokenstandard.registry.service.CtxValue.CtxContractId
 import tokenstandard.registry.service.CtxValue.CtxList

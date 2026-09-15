@@ -10,6 +10,8 @@ import daml.splice.testing.tokens.testtokenv2.TokenRules
 import daml.splice.testing.tokens.testtokenv2.accountconfig.AccountConfig
 import daml.splice.testing.tokens.testtokenv2.holding.Token
 import tokenstandard.PartyId
+import tokenstandard.ledger.CantonM
+import tokenstandard.ledger.LedgerClientCanton
 import tokenstandard.registry.service.*
 
 import scala.jdk.CollectionConverters.*
