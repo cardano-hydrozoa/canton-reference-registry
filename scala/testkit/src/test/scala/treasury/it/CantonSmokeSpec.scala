@@ -2,12 +2,14 @@ package treasury.it
 
 import scala.jdk.CollectionConverters.*
 
-import cats.effect.unsafe.implicits.global
+import cats.effect.{IO, Resource}
+import cats.effect.testing.scalatest.AsyncIOSpec
 
 import com.daml.ledger.javaapi.data.ContractFilter
 import com.daml.ledger.rxjava.DamlLedgerClient
+import com.dimafeng.testcontainers.GenericContainer
 
-import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.funsuite.AsyncFunSuite
 
 import daml.splice.testing.tokens.testtokenv2.TokenRules
 
@@ -27,31 +29,57 @@ import daml.splice.testing.tokens.testtokenv2.TokenRules
   *   CANTON_IT=1 JAVA_TOOL_OPTIONS=-Dapi.version=1.44 sbt "testOnly treasury.it.CantonSmokeSpec"
   * }}}
   */
-class CantonSmokeSpec extends AnyFunSuite:
+class CantonSmokeSpec extends AsyncFunSuite, AsyncIOSpec:
+
+    private val container: Resource[IO, GenericContainer] =
+        Resource.make(IO.blocking { val c = CantonContainer(); c.start(); c })(c =>
+            IO.blocking(c.stop())
+        )
+
+    private def rawClient(port: Int): Resource[IO, DamlLedgerClient] =
+        Resource.make(IO.blocking {
+            val c = DamlLedgerClient.newBuilder("localhost", port).build(); c.connect(); c
+        })(c => IO.blocking(c.close()))
+
+    private def ledgerClient(port: Int): Resource[IO, LedgerClientCanton] =
+        Resource.make(IO.blocking(LedgerClientCanton.connect("localhost", port)))(l =>
+            IO.blocking(l.close())
+        )
+
+    private val hints = List("alice", "bob", "hydrozoa", "adminTT2")
 
     test("canton boots, uploads DARs, and serves the Ledger API"):
         assume(
           sys.env.get("CANTON_IT").contains("1"),
           "set CANTON_IT=1 to run Canton integration tests"
         )
+        val setup =
+            for
+                c <- container
+                port <- Resource.eval(IO.blocking(c.mappedPort(CantonContainer.LedgerApiPort)))
+                client <- rawClient(port)
+                ledger <- ledgerClient(port)
+            yield (port, client, ledger)
 
-        val container = CantonContainer()
-        container.start()
-        try
-            val port = container.mappedPort(CantonContainer.LedgerApiPort)
-            val client = DamlLedgerClient.newBuilder("localhost", port).build()
-            client.connect()
-            try
-                val packageIds =
-                    client.getPackageClient.listPackages().blockingIterable().asScala.toList
+        setup.use { (port, client, ledger) =>
+            for
+                packageIds <- IO.blocking(
+                  client.getPackageClient.listPackages().blockingIterable().asScala.toList
+                )
+                // Party allocation over the admin gRPC service (rxjava has no party client).
+                parties <- IO.blocking(CantonParties.allocate("localhost", port, hints))
+                admin = parties("adminTT2")
+                // Submit + typed ACS read: create the registry's TokenRules as admin, read it back.
+                _ <- ledger.createTokenRules(admin).value.flatMap(IO.fromEither)
+                rules <- ledger
+                    .activeContractsOf(ContractFilter.of(TokenRules.COMPANION), admin)
+                    .value
+                    .flatMap(IO.fromEither)
+            yield
                 assert(
                   packageIds.nonEmpty,
                   "no packages found on the participant — DAR upload failed?"
                 )
-
-                // Party allocation over the admin gRPC service (rxjava has no party client).
-                val hints = List("alice", "bob", "hydrozoa", "adminTT2")
-                val parties = CantonParties.allocate("localhost", port, hints)
                 assert(parties.keySet == hints.toSet, s"missing parties: $parties")
                 assert(parties.values.toSet.size == hints.size, s"party ids not distinct: $parties")
                 hints.foreach(h =>
@@ -60,19 +88,5 @@ class CantonSmokeSpec extends AnyFunSuite:
                       s"party id for $h not namespaced: ${parties(h)}"
                     )
                 )
-
-                // Submit + typed ACS read: create the registry's TokenRules as admin, read it back.
-                val ledger = LedgerClientCanton.connect("localhost", port)
-                try
-                    val admin = parties("adminTT2")
-                    val rules = (for
-                        _ <- ledger.createTokenRules(admin)
-                        rs <- ledger.activeContractsOf(
-                          ContractFilter.of(TokenRules.COMPANION),
-                          admin
-                        )
-                    yield rs).value.unsafeRunSync()
-                    assert(rules.exists(_.size == 1), s"expected exactly 1 TokenRules, got: $rules")
-                finally ledger.close()
-            finally client.close()
-        finally container.stop()
+                assert(rules.size == 1, s"expected exactly 1 TokenRules, got: $rules")
+        }

@@ -1,7 +1,7 @@
 package treasury.registry.service.http
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
+import cats.effect.testing.scalatest.AsyncIOSpec
 
 import io.circe.Json
 import io.circe.syntax.*
@@ -11,7 +11,7 @@ import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.client.Client
 import org.http4s.implicits.*
 
-import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.funsuite.AsyncFunSuite
 
 import treasury.PartyId
 import treasury.registry.service.*
@@ -24,7 +24,7 @@ import treasury.registry.openapi.allocinstr.models as ai
   * `Client.fromHttpApp` (no socket, no Canton). Exercises request decode -> account extraction ->
   * service -> response encode -> client decode with the generated wire DTOs.
   */
-class RegistryHttpSpec extends AnyFunSuite:
+class RegistryHttpSpec extends AsyncFunSuite, AsyncIOSpec:
 
     private def acct(id: String, owner: String): Account =
         Account(Some(PartyId(owner)), None, AccountId(id))
@@ -60,9 +60,11 @@ class RegistryHttpSpec extends AnyFunSuite:
     // Guards the build.sbt post-processing that strips openapi-generator's rogue Json codecs: a
     // free-form choiceArguments object must round-trip as embedded JSON, not an escaped string.
     test("GetFactoryRequest keeps choiceArguments as embedded JSON (not a stringified object)"):
-        val ca = Json.obj("allocation" -> Json.obj("authorizer" -> acctJson(alice)))
-        val decoded = ai.GetFactoryRequest(choiceArguments = ca).asJson.as[ai.GetFactoryRequest]
-        assert(decoded.map(_.choiceArguments) == Right(ca))
+        IO {
+            val ca = Json.obj("allocation" -> Json.obj("authorizer" -> acctJson(alice)))
+            val decoded = ai.GetFactoryRequest(choiceArguments = ca).asJson.as[ai.GetFactoryRequest]
+            assert(decoded.map(_.choiceArguments) == Right(ca))
+        }
 
     test("allocation-factory endpoint round-trips request → context bundle"):
         val svc = RegistryService(MockAcsSource[IO](rules, List(cfg("cfgA", alice))))
@@ -71,13 +73,13 @@ class RegistryHttpSpec extends AnyFunSuite:
             Request[IO](Method.POST, uri"/registry/allocation-instruction/v2/allocation-factory")
                 .withEntity(ai.GetFactoryRequest(choiceArguments = ca))
 
-        val resp = client(svc).expect[ai.FactoryWithChoiceContext](req).unsafeRunSync()
-
-        assert(resp.factoryId == "rules")
-        assert(resp.choiceContext.disclosedContracts.map(_.contractId) == List("rules", "cfgA"))
-        val keys =
-            resp.choiceContext.choiceContextData.hcursor.downField("values").keys.map(_.toSet)
-        assert(keys.contains(Set(ContextKeys.tokenRules, ContextKeys.accountConfigs)))
+        client(svc).expect[ai.FactoryWithChoiceContext](req).asserting { resp =>
+            assert(resp.factoryId == "rules")
+            assert(resp.choiceContext.disclosedContracts.map(_.contractId) == List("rules", "cfgA"))
+            val keys =
+                resp.choiceContext.choiceContextData.hcursor.downField("values").keys.map(_.toSet)
+            assert(keys.contains(Set(ContextKeys.tokenRules, ContextKeys.accountConfigs)))
+        }
 
     test("settlement-factory endpoint threads legs + allocations into disclosures"):
         val locked = Map(
@@ -102,10 +104,10 @@ class RegistryHttpSpec extends AnyFunSuite:
         val req = Request[IO](Method.POST, uri"/registry/allocation/v2/settlement-factory")
             .withEntity(al.GetFactoryRequest(choiceArguments = ca))
 
-        val resp = client(svc).expect[al.FactoryWithChoiceContext](req).unsafeRunSync()
-
-        assert(resp.factoryId == "rules")
-        assert(
-          resp.choiceContext.disclosedContracts
-              .map(_.contractId) == List("rules", "cfgA", "cfgB", "locked-1")
-        )
+        client(svc).expect[al.FactoryWithChoiceContext](req).asserting { resp =>
+            assert(resp.factoryId == "rules")
+            assert(
+              resp.choiceContext.disclosedContracts
+                  .map(_.contractId) == List("rules", "cfgA", "cfgB", "locked-1")
+            )
+        }
