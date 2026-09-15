@@ -40,9 +40,13 @@ val commonScalacOptions = Seq(
   "-feature",
   "-unchecked",
   "-Wunused:all",
+  "-Werror", // warnings are build errors; keep our sources clean (CI runs a clean compile)
   // Generated code (Daml codegen, OpenAPI DTOs) under src_managed carries unused imports; don't let
   // -Werror reject machine-generated code. Our own sources stay strict.
   "-Wconf:src=.*src_managed.*:s",
+  // RegistryApi's endpoint methods default to `notImplemented`, so their (contract-required,
+  // overrider-used) params are unused in the default body. Silence just that in that one file.
+  "-Wconf:msg=unused explicit parameter&src=.*RegistryApi\\.scala:s",
 )
 
 // sbt 2 mis-detects forked ScalaCheck runs and drops all but the first property of a suite; route
