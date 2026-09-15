@@ -204,6 +204,7 @@ lazy val impl = (project in file("impl"))
       "io.circe" %% "circe-core" % circeV,
       "io.circe" %% "circe-parser" % circeV,
       "org.http4s" %% "http4s-ember-server" % http4sV,
+      "org.http4s" %% "http4s-client" % http4sV,
       "org.http4s" %% "http4s-circe" % http4sV,
       "org.http4s" %% "http4s-dsl" % http4sV,
     ),
