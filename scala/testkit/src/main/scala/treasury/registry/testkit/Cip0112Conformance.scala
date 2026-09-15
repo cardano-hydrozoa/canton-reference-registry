@@ -10,11 +10,6 @@ import com.daml.ledger.javaapi.data.DisclosedContract
 import org.scalacheck.{Gen, Prop, Properties, PropertyM}
 import org.scalacheck.util.Pretty
 
-import treasury.registry.RegistryApi
-import treasury.registry.RegistryApi.EnrichedFactoryChoice
-
-import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
-
 /** Optional (RFC-2119 SHOULD/MAY) conformance properties, flag-gated with sensible defaults. The
   * MUST properties (P1 complete disclosures, P2 factoryId present) always run.
   */
@@ -26,14 +21,66 @@ object ConformanceFlags:
     val default: ConformanceFlags = ConformanceFlags()
 
 /** A base choice arg and a variant referencing the SAME accounts but DIFFERENT contract-ids, for
-  * the prefetchability property.
+  * the prefetchability property. For non-factory endpoints (where P3 does not apply) use
+  * [[CidVariant.same]].
   */
 final case class CidVariant[A](base: A, sameAccountsDifferentCids: A)
+object CidVariant:
+    def same[A](a: A): CidVariant[A] = CidVariant(a, a)
 
-/** Everything the conformance suite needs to exercise a specific [[RegistryApi]] implementation:
-  * how to run its effect `F` to a `Prop`, and generators for choice arguments the implementation's
-  * ledger state can serve. Kept separate from the impl so the suite stays parametric — a
-  * mock-backed impl supplies in-memory scenarios, a Canton-backed impl supplies live ones.
+/** A normalized view of any registry endpoint's result — factories and lifecycle contexts alike —
+  * over which the conformance properties are stated: the (optional) factory id, the assembled
+  * choice-context values, and the disclosures. Fixtures build one from the concrete endpoint result
+  * (they know its type; the suite stays generic).
+  */
+final case class ContextView(
+    factoryId: Option[String],
+    contextValues: Map[String, ?],
+    disclosures: List[DisclosedContract],
+)
+object ContextView:
+    def factory(
+        factoryId: String,
+        values: java.util.Map[String, ?],
+        disclosures: List[DisclosedContract],
+    ): ContextView = ContextView(Some(factoryId), values.asScala.toMap, disclosures)
+
+    def context(
+        values: java.util.Map[String, ?],
+        disclosures: List[DisclosedContract],
+    ): ContextView = ContextView(None, values.asScala.toMap, disclosures)
+
+/** One endpoint of the implementation under test: a name, whether it is a factory (so P2 —
+  * factoryId — applies), a generator of inputs (base + a same-accounts-different-cids variant for
+  * P3), and how to call the impl and normalize its result to a [[ContextView]]. The input type `A`
+  * is existential (an abstract member) so probes for different endpoints live in one
+  * `List[EndpointProbe[F]]`.
+  */
+sealed trait EndpointProbe[F[_]]:
+    type A
+    def name: String
+    def factoryLike: Boolean
+    def inputs: Gen[CidVariant[A]]
+    def call(a: A): F[ContextView]
+
+object EndpointProbe:
+    def apply[F[_], A0](
+        name0: String,
+        factoryLike0: Boolean,
+        inputs0: Gen[CidVariant[A0]],
+        call0: A0 => F[ContextView],
+    ): EndpointProbe[F] = new EndpointProbe[F]:
+        type A = A0
+        val name = name0
+        val factoryLike = factoryLike0
+        val inputs = inputs0
+        def call(a: A0): F[ContextView] = call0(a)
+
+/** Everything the conformance suite needs to exercise a specific implementation: how to run its
+  * effect `F` to a `Prop`, and the [[EndpointProbe]]s covering the endpoints it serves. Kept
+  * separate from the impl so the suite stays parametric — a mock-backed impl supplies in-memory
+  * scenarios, a Canton-backed impl supplies live ones, and an impl that serves only some endpoints
+  * supplies only those probes.
   */
 trait ConformanceFixture[F[_]]:
     given monad: Monad[F]
@@ -41,21 +88,25 @@ trait ConformanceFixture[F[_]]:
     /** Run an `F[Prop]` to a `Prop` (IO: `unsafeRunSync` via an `IORuntime`; `Either`: fold). */
     def runToProp(fp: F[Prop]): Prop
 
-    /** Allocation-factory args the implementation under test can serve (accounts it knows). */
-    def allocationArgs: Gen[CidVariant[AllocationFactory_Allocate]]
+    /** The endpoints to exercise, each with input generators the implementation's state can serve.
+      */
+    def probes: List[EndpointProbe[F]]
 
-/** CIP-0112 registry conformance suite, parametric over any [[RegistryApi]] implementation and its
-  * [[ConformanceFixture]]. Encodes the normative properties derivable from the token-standard
-  * OpenAPI specs + Daml semantics (the CIP text itself defers to them):
+/** CIP-0112 registry conformance suite, parametric over any [[RegistryApi]] implementation (via its
+  * [[ConformanceFixture]]) and over the endpoints it serves. For every [[EndpointProbe]] it states
+  * the normative properties derivable from the token-standard OpenAPI specs + Daml semantics:
   *   - P1 (MUST): every returned `DisclosedContract` has all four required fields populated.
-  *   - P2 (MUST): `factoryId` is present.
-  *   - P3 (SHOULD): `choiceContextData` does not depend on contract-ids in the choice arguments, so
-  *     clients can prefetch (flag: `checkPrefetchability`).
+  *   - P2 (MUST, factories only): `factoryId` is present.
+  *   - P3 (SHOULD, factories only): `choiceContextData` does not depend on contract-ids in the
+  *     choice arguments, so clients can prefetch (flag: `checkPrefetchability`).
   *   - P4: the assembled context is deterministic in the arguments + ledger state (flag:
   *     `checkDeterminism`).
   *
   * Returns an `org.scalacheck.Properties`; run it via the ScalaCheck framework (see the ported
-  * `test.ScalaCheckFrameworkFixed`) or `Test.checkProperties`.
+  * `test.ScalaCheckFrameworkFixed`) or `Test.checkProperties`. The check predicates
+  * ([[disclosuresComplete]], [[factoryIdPresent]]) are exposed so a non-ScalaCheck harness (e.g. an
+  * `AsyncIOSpec` over an `IO`-only impl) can apply the same normative checks without the ScalaCheck
+  * edge.
   */
 object Cip0112Conformance:
 
@@ -65,69 +116,64 @@ object Cip0112Conformance:
     private given unitToProp: (Unit => Prop) = _ => Prop.proved
 
     def suite[F[_]](
-        impl: RegistryApi[F],
         fixture: ConformanceFixture[F],
         flags: ConformanceFlags = ConformanceFlags.default,
     ): Properties =
         new Properties("cip0112-registry"):
             given Monad[F] = fixture.monad
 
-            /** Turn a generated-then-monadic body into a `Prop`, running `F` via the fixture. */
             private def check[A](gen: Gen[A])(body: A => PropertyM[F, Unit]): Prop =
                 PropertyM.monadic(fixture.runToProp, PropertyM.forAllM(gen, body))
 
-            property("allocation-factory: factoryId present (P2) and disclosures complete (P1)") =
-                check(fixture.allocationArgs.map(_.base)) { arg =>
-                    for
-                        r <- PropertyM.run(impl.getAllocationFactory(arg))
-                        _ <- PropertyM.assertWith(
-                          r.factoryCid.nonEmpty,
-                          "factoryId must be present"
-                        )
-                        _ <- PropertyM.assertWith(
-                          r.disclosures.forall(disclosureComplete),
-                          "every disclosed contract must have templateId/contractId/blob/synchronizerId",
-                        )
-                    yield ()
-                }
-
-            if flags.checkPrefetchability then
-                property("allocation-factory: choiceContextData independent of arg cids (P3)") =
-                    check(fixture.allocationArgs) { v =>
+            fixture.probes.foreach { probe =>
+                property(s"${probe.name}: disclosures complete (P1) + factoryId present (P2)") =
+                    check(probe.inputs.map(_.base)) { a =>
                         for
-                            r1 <- PropertyM.run(impl.getAllocationFactory(v.base))
-                            r2 <- PropertyM.run(
-                              impl.getAllocationFactory(v.sameAccountsDifferentCids)
+                            cv <- PropertyM.run(probe.call(a))
+                            _ <- PropertyM.assertWith(
+                              cv.disclosures.forall(disclosuresComplete),
+                              "every disclosed contract must have templateId/contractId/blob/synchronizerId",
                             )
                             _ <- PropertyM.assertWith(
-                              contextData(r1) == contextData(r2),
-                              "choiceContextData must not depend on contract-ids in the arguments",
+                              !probe.factoryLike || cv.factoryId.exists(_.nonEmpty),
+                              "a factory endpoint must return a present factoryId",
                             )
                         yield ()
                     }
 
-            if flags.checkDeterminism then
-                property("allocation-factory: deterministic in args + state (P4)") =
-                    check(fixture.allocationArgs.map(_.base)) { arg =>
-                        for
-                            r1 <- PropertyM.run(impl.getAllocationFactory(arg))
-                            r2 <- PropertyM.run(impl.getAllocationFactory(arg))
-                            _ <- PropertyM.assertWith(
-                              contextData(r1) == contextData(r2) && r1.factoryCid == r2.factoryCid,
-                              "same args + state must yield the same factory choice",
-                            )
-                        yield ()
-                    }
+                if flags.checkPrefetchability && probe.factoryLike then
+                    property(s"${probe.name}: choiceContextData independent of arg cids (P3)") =
+                        check(probe.inputs) { v =>
+                            for
+                                r1 <- PropertyM.run(probe.call(v.base))
+                                r2 <- PropertyM.run(probe.call(v.sameAccountsDifferentCids))
+                                _ <- PropertyM.assertWith(
+                                  r1.contextValues == r2.contextValues,
+                                  "choiceContextData must not depend on contract-ids in the arguments",
+                                )
+                            yield ()
+                        }
 
-    private def disclosureComplete(d: DisclosedContract): Boolean =
+                if flags.checkDeterminism then
+                    property(s"${probe.name}: deterministic in args + state (P4)") =
+                        check(probe.inputs.map(_.base)) { a =>
+                            for
+                                r1 <- PropertyM.run(probe.call(a))
+                                r2 <- PropertyM.run(probe.call(a))
+                                _ <- PropertyM.assertWith(
+                                  r1.contextValues == r2.contextValues && r1.factoryId == r2.factoryId,
+                                  "same args + state must yield the same context",
+                                )
+                            yield ()
+                        }
+            }
+
+    /** P1: a disclosed contract has all four wire fields populated. */
+    def disclosuresComplete(d: DisclosedContract): Boolean =
         d.templateId != null &&
             d.contractId.nonEmpty &&
             !d.createdEventBlob.isEmpty &&
             d.synchronizerId.isPresent && !d.synchronizerId.get.isEmpty
 
-    /** The `choiceContextData` (Daml `ChoiceContext.values`) embedded in the returned choice arg.
-      */
-    private def contextData(
-        r: EnrichedFactoryChoice[AllocationFactory_Allocate]
-    ): Map[String, ?] =
-        r.arg.extraArgs.context.values.asScala.toMap
+    /** P2: a factory endpoint returns a present factoryId. */
+    def factoryIdPresent(cv: ContextView): Boolean = cv.factoryId.exists(_.nonEmpty)
