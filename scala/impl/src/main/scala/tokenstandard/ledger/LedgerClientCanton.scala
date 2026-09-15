@@ -15,8 +15,6 @@ import com.daml.ledger.javaapi.data.Identifier
 import com.daml.ledger.javaapi.data.Transaction
 import com.daml.ledger.javaapi.data.TransactionFormat
 import com.daml.ledger.javaapi.data.TransactionShape
-import com.daml.ledger.javaapi.data.UpdateSubmission
-import com.daml.ledger.javaapi.data.codegen.Exercised
 import com.daml.ledger.javaapi.data.codegen.HasCommands
 import com.daml.ledger.javaapi.data.codegen.Update
 import com.daml.ledger.rxjava.DamlLedgerClient
@@ -42,59 +40,57 @@ type CantonM[A] = EitherT[IO, Error, A]
 /** [[LedgerClient]] against a live Canton participant. Wraps the rxjava `DamlLedgerClient`; each
   * call runs the blocking rx call on IO and maps failures to `Error`.
   *
-  * [[exercise]] submits via `SubmitAndWaitForTransaction` with a `LEDGER_EFFECTS`-shaped
-  * `TransactionFormat` — the shape that carries the root `ExercisedEvent` with the choice result —
-  * and feeds that event through the codegen update's own decoder/continuation. The rxjava
-  * `submitAndWaitForResult` convenience is unusable here: for exercise updates it ignores its
-  * `TransactionFormat` and delegates to `SubmitAndWaitForTransactionTree`, which this Canton build
-  * does not implement.
+  * [[submit]] sends the whole `Submission` (one or many commands) as one `CommandsSubmission` via
+  * `SubmitAndWaitForTransaction` with a `LEDGER_EFFECTS`-shaped `TransactionFormat` — the shape
+  * that carries the root `ExercisedEvent`s with the choice results — and feeds each root event
+  * through its codegen update's own decoder/continuation. The rxjava `submitAndWaitForResult`
+  * convenience is unusable here: for exercise updates it ignores its `TransactionFormat` and
+  * delegates to `SubmitAndWaitForTransactionTree`, which this Canton build does not implement.
   */
 final class LedgerClientCanton private (client: DamlLedgerClient, userId: String)
     extends LedgerClient[CantonM]:
 
-    def exercise[U](
+    def submit[A](
         actAs: PartyId,
         readAs: List[PartyId],
-        update: Update[U],
+        submission: Submission[A],
         disclosures: List[DisclosedContract],
-    ): CantonM[U] =
-        update match
-            case eu: Update.ExerciseUpdate[?, ?] =>
-                runExercise(
-                  actAs,
-                  readAs,
-                  eu.asInstanceOf[Update.ExerciseUpdate[?, U]],
-                  disclosures
-                )
-            case other =>
+    ): CantonM[A] =
+        submission.commands.find(u => !u.isInstanceOf[Update.ExerciseUpdate[?, ?]]) match
+            case Some(other) =>
                 EitherT.leftT(
                   Error.NotImplemented(s"LedgerClientCanton update: ${other.getClass.getName}")
                 )
-
-    private def runExercise[R, U](
-        actAs: PartyId,
-        readAs: List[PartyId],
-        eu: Update.ExerciseUpdate[R, U],
-        disclosures: List[DisclosedContract],
-    ): CantonM[U] =
-        val base = UpdateSubmission
-            .create(userId, UUID.randomUUID().toString, eu)
-            .withActAs(actAs.value)
-        val submission =
-            if readAs.isEmpty then base else base.withReadAs(readAs.map(_.value).asJava)
-        val format = new TransactionFormat(
-          wildcardEventFormat(actAs :: readAs),
-          TransactionShape.LEDGER_EFFECTS,
-        )
-        // Disclosures must be re-attached AFTER toCommandsSubmission: the bindings'
-        // UpdateSubmission.toCommandsSubmission drops them (passes emptyList() at the
-        // disclosedContracts position).
-        val cmds = submission.toCommandsSubmission.withDisclosedContracts(disclosures.asJava)
-        for
-            tx <- single(client.getCommandClient.submitAndWaitForTransaction(cmds, format))
-            event <- EitherT.fromEither[IO](rootExercisedEvent(tx))
-            result <- blocking(eu.k.apply(Exercised.fromEvent(eu.returnTypeDecoder, event)))
-        yield result
+            case None =>
+                val format = new TransactionFormat(
+                  wildcardEventFormat(actAs :: readAs),
+                  TransactionShape.LEDGER_EFFECTS,
+                )
+                // All commands ride ONE CommandsSubmission → one atomic transaction. Built
+                // directly, NOT via UpdateSubmission.toCommandsSubmission, which silently drops
+                // disclosed contracts (passes emptyList() at that ctor position).
+                val base = CommandsSubmission
+                    .create(
+                      userId,
+                      UUID.randomUUID().toString,
+                      Optional.empty(),
+                      submission.commands.map(u => u: HasCommands).asJava,
+                    )
+                    .withActAs(actAs.value)
+                    .withDisclosedContracts(disclosures.asJava)
+                val cmds =
+                    if readAs.isEmpty then base else base.withReadAs(readAs.map(_.value).asJava)
+                for
+                    tx <- single(client.getCommandClient.submitAndWaitForTransaction(cmds, format))
+                    events <- EitherT.fromEither[IO](
+                      rootExercisedEvents(tx, submission.commands.size)
+                    )
+                    result <- blocking(
+                      submission.decode(
+                        submission.commands.zip(events).map(Submission.decodeExercised)
+                      )
+                    )
+                yield result
 
     /** Per-party wildcard filter for the submission's transaction: the acting/reading parties see
       * every event they are informees of — in particular the root exercise carrying the result.
@@ -111,16 +107,24 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
           false,
         )
 
-    /** The root `ExercisedEvent` of a LEDGER_EFFECTS transaction — the exercised command node. */
-    private def rootExercisedEvent(tx: Transaction): Either[Error, ExercisedEvent] =
-        tx.getRootNodeIds.asScala
+    /** The root `ExercisedEvent`s of a LEDGER_EFFECTS transaction, in command order (root node ids
+      * are assigned in execution order — one per submitted command).
+      */
+    private def rootExercisedEvents(
+        tx: Transaction,
+        expected: Int,
+    ): Either[Error, List[ExercisedEvent]] =
+        val events = tx.getRootNodeIds.asScala.toList.sorted
             .flatMap(id => Option(tx.getEventsById.get(id)))
-            .collectFirst { case e: ExercisedEvent => e }
-            .toRight(
-              Error.Unexpected(
-                s"no root ExercisedEvent in transaction ${tx.getUpdateId}: ${tx.getEvents}"
-              )
-            )
+            .collect { case e: ExercisedEvent => e }
+        Either.cond(
+          events.size == expected,
+          events,
+          Error.Unexpected(
+            s"expected $expected root ExercisedEvents in transaction ${tx.getUpdateId}, " +
+                s"got ${events.size}: ${tx.getEvents}"
+          ),
+        )
 
     // --- ACS reads for balance checkpoints -------------------------------------
 

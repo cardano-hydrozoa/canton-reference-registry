@@ -7,6 +7,7 @@ import daml.splice.api.token.allocationv2.Allocation
 import daml.splice.api.token.allocationv2.SettlementFactory
 import daml.splice.api.token.holdingv2.InstrumentId
 import tokenstandard.ledger.LedgerClient
+import tokenstandard.ledger.Submission
 import tokenstandard.registry.RegistryApi
 import tokenstandard.registry.RegistryApi.Error
 
@@ -29,10 +30,9 @@ final case class SwapEnv(
   * routed to *its own* registry (`regX` vs `regY`, keyed by the instrument's admin — the
   * `MultiRegistry` shape), and the operator settles each registry's batch.
   *
-  * On Canton the two settlement exercises go in a single submission (one atomic transaction), so
-  * the swap is all-or-nothing across registries — no cross-synchronizer needed. The in-memory
-  * ledger used in tests applies them sequentially; it doesn't enforce that atomicity, which is
-  * validated in the Canton integration.
+  * The two settlement exercises ride ONE [[tokenstandard.ledger.Submission]] (`settleX *> settleY`
+  * — the port of the Daml `exerciseCmd ecX *> exerciseCmd ecY`), so the swap commits as a single
+  * atomic transaction across both registries — no cross-synchronizer needed.
   */
 final class CrossRegistrySwapFlow[F[_]](
     regX: RegistryApi[F],
@@ -84,23 +84,24 @@ final class CrossRegistrySwapFlow[F[_]](
                 )
             yield cid
 
-        def settleOn(
+        def settlementBundle(
             reg: RegistryApi[F],
             legs: List[daml.splice.api.token.allocationv2.TransferLeg],
             allocations: List[daml.splice.api.token.allocationv2.FinalizedAllocation],
-        ): F[Unit] =
-            for
-                bundle <- reg.getSettlementFactory(
-                  settlementFactorySettleBatch(settlement, legs, allocations, List(env.operator))
-                )
-                _ <- ledger.exercise(
-                  env.operator,
-                  Nil,
-                  new SettlementFactory.ContractId(bundle.factoryCid)
-                      .exerciseSettlementFactory_SettleBatch(bundle.arg),
-                  bundle.disclosures,
-                )
-            yield ()
+        ) =
+            reg.getSettlementFactory(
+              settlementFactorySettleBatch(settlement, legs, allocations, List(env.operator))
+            )
+
+        def settleSubmission(
+            bundle: RegistryApi.EnrichedFactoryChoice[
+              daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
+            ]
+        ) =
+            Submission.exercise(
+              new SettlementFactory.ContractId(bundle.factoryCid)
+                  .exerciseSettlementFactory_SettleBatch(bundle.arg)
+            )
 
         for
             aliceInputsX <- ledger.listHoldingCids(env.alice, env.alice, xId)
@@ -162,17 +163,23 @@ final class CrossRegistrySwapFlow[F[_]](
               Nil
             )
 
-            // Cross-registry settle: registryX settles the X leg, registryY the Y leg (one atomic
-            // submission on Canton).
-            _ <- settleOn(
+            // Cross-registry settle: registryX settles the X leg, registryY the Y leg — BOTH in
+            // one Submission, i.e. one atomic transaction (the Daml `*>`).
+            bundleX <- settlementBundle(
               regX,
               List(xLeg),
               List(nonIteratedAllocation(aliceSendX), nonIteratedAllocation(bobRecvX))
             )
-            _ <- settleOn(
+            bundleY <- settlementBundle(
               regY,
               List(yLeg),
               List(nonIteratedAllocation(bobSendY), nonIteratedAllocation(aliceRecvY))
+            )
+            _ <- ledger.submit(
+              env.operator,
+              Nil,
+              settleSubmission(bundleX) *> settleSubmission(bundleY),
+              bundleX.disclosures ++ bundleY.disclosures,
             )
 
             // The instruments have crossed registries; value is conserved.

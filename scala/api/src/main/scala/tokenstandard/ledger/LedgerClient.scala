@@ -18,19 +18,32 @@ import tokenstandard.PartyId
   */
 trait LedgerClient[F[_]]:
 
-    /** Submit a codegen [[Update]] — the command plus its typed-result continuation, as produced by
-      * the generated `exercise*` methods (e.g.
+    /** Submit a [[Submission]] — one or more commands committed as ONE atomic transaction — and
+      * return its decoded result. Atomic composition happens inside the `Submission` applicative
+      * (`Submission.exercise(a) *> Submission.exercise(b)`); sequencing `submit` calls in `F` is
+      * the non-atomic composition (separate transactions). `disclosures` are the registry-owned
+      * contracts the submitter must attach (from `EnrichedFactoryChoice.disclosures`); `readAs`
+      * grants read delegation beyond `actAs` for contracts disclosure doesn't cover.
+      */
+    def submit[A](
+        actAs: PartyId,
+        readAs: List[PartyId],
+        submission: Submission[A],
+        disclosures: List[DisclosedContract],
+    ): F[A]
+
+    /** Single-exercise sugar for [[submit]]: submit one codegen [[Update]] — the command plus its
+      * typed-result continuation, as produced by the generated `exercise*` methods (e.g.
       * `new AllocationFactory.ContractId(cid).exerciseAllocationFactory_Allocate(arg)`) — and
-      * return the decoded choice result. `disclosures` are the registry-owned contracts the
-      * submitter must attach (from `EnrichedFactoryChoice.disclosures`); `readAs` grants read
-      * delegation beyond `actAs` for contracts disclosure doesn't cover.
+      * return the decoded choice result.
       */
     def exercise[U](
         actAs: PartyId,
         readAs: List[PartyId],
         update: Update[U],
         disclosures: List[DisclosedContract],
-    ): F[U]
+    ): F[U] =
+        submit(actAs, readAs, Submission.exercise(update), disclosures)
 
     // --- ACS reads for balance checkpoints (port of WalletClientV2) ------------
     // `as` is the party the ledger is read as (contract visibility is per-party on a real ledger);

@@ -5,7 +5,6 @@ import com.daml.ledger.javaapi.data.DisclosedContract
 import com.daml.ledger.javaapi.data.ExerciseCommand
 import com.daml.ledger.javaapi.data.ExercisedEvent
 import com.daml.ledger.javaapi.data.Value
-import com.daml.ledger.javaapi.data.codegen.Exercised
 import com.daml.ledger.javaapi.data.codegen.Update
 import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
 import daml.splice.api.token.allocationinstructionv2.AllocationInstructionResult
@@ -93,33 +92,45 @@ type LedgerM[A] = StateT[[X] =>> Either[Error, X], LedgerState, A]
   */
 object InMemoryLedger extends LedgerClient[LedgerM]:
 
-    def exercise[U](
+    def submit[A](
         actAs: PartyId,
         readAs: List[PartyId],
-        update: Update[U],
+        submission: Submission[A],
         disclosures: List[DisclosedContract],
-    ): LedgerM[U] =
-        update match
-            case eu: Update.ExerciseUpdate[?, ?] =>
-                runExercise(eu.asInstanceOf[Update.ExerciseUpdate[?, U]])
-            case other =>
-                StateT.liftF(
-                  Left(Error.NotImplemented(s"InMemoryLedger update: ${other.getClass.getName}"))
-                )
-
-    private def runExercise[R, U](eu: Update.ExerciseUpdate[R, U]): LedgerM[U] =
-        StateT { s =>
-            eu.commands().asScala.toList match
-                case (cmd: ExerciseCommand) :: Nil =>
-                    interpret(cmd, s).map { (s2, resultValue) =>
-                        val exercised =
-                            Exercised.fromEvent(eu.returnTypeDecoder, synthEvent(cmd, resultValue))
-                        (s2, eu.k.apply(exercised))
-                    }
-                case other =>
-                    Left(
-                      Error.Unexpected(s"InMemoryLedger: expected 1 exercise command, got $other")
-                    )
+    ): LedgerM[A] =
+        // One state transition for the WHOLE batch: any failing command short-circuits the Either
+        // and no intermediate state escapes — the in-memory model of an atomic transaction.
+        StateT { s0 =>
+            submission.commands
+                .foldLeft[Either[Error, (LedgerState, List[Any])]](Right((s0, Nil))) {
+                    (acc, update) =>
+                        acc.flatMap { (s, results) =>
+                            update match
+                                case eu: Update.ExerciseUpdate[?, ?] =>
+                                    eu.commands().asScala.toList match
+                                        case (cmd: ExerciseCommand) :: Nil =>
+                                            interpret(cmd, s).map { (s2, resultValue) =>
+                                                val decoded = Submission.decodeExercised(
+                                                  eu,
+                                                  synthEvent(cmd, resultValue),
+                                                )
+                                                (s2, results :+ decoded)
+                                            }
+                                        case other =>
+                                            Left(
+                                              Error.Unexpected(
+                                                s"InMemoryLedger: expected 1 exercise command, got $other"
+                                              )
+                                            )
+                                case other =>
+                                    Left(
+                                      Error.NotImplemented(
+                                        s"InMemoryLedger update: ${other.getClass.getName}"
+                                      )
+                                    )
+                        }
+                }
+                .map { (s2, results) => (s2, submission.decode(results)) }
         }
 
     /** Simulate one choice: decode the argument, apply the transition, return the encoded result.
