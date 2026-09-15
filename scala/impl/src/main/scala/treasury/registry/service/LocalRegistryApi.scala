@@ -75,14 +75,24 @@ final class LocalRegistryApi[F[_]](
     // -- Transfer factory (fan-out: cluster A) -----------------------------------------------------
 
     /** Cluster A hole. Mirror [[getAllocationFactory]]: read sender + receiver off `arg.transfer`,
-      * assemble via `service.choiceContext(List(sender, receiver))`, rebuild `TransferFactory_Transfer`
-      * with `embedContext(arg.extraArgs, bundle)`, and return the `EnrichedFactoryChoice`
-      * (`bundle.factoryId.value`, the rebuilt arg, `disclosuresOf(bundle)`). Port of
-      * `registryApi_getTransferFactoryV2`.
+      * assemble via `service.choiceContext(List(sender, receiver))`, rebuild
+      * `TransferFactory_Transfer` with `embedContext(arg.extraArgs, bundle)`, and return the
+      * `EnrichedFactoryChoice` (`bundle.factoryId.value`, the rebuilt arg,
+      * `disclosuresOf(bundle)`). Port of `registryApi_getTransferFactoryV2`.
       */
     override def getTransferFactory(
         arg: TransferFactory_Transfer
-    ): F[EnrichedFactoryChoice[TransferFactory_Transfer]] = ???
+    ): F[EnrichedFactoryChoice[TransferFactory_Transfer]] =
+        val senderDom = toDomainAccount(arg.transfer.sender)
+        val receiverDom = toDomainAccount(arg.transfer.receiver)
+        service.choiceContext(List(senderDom, receiverDom)).map { bundle =>
+            val withCtx = new TransferFactory_Transfer(
+              arg.transfer,
+              arg.actors,
+              embedContext(arg.extraArgs, bundle),
+            )
+            EnrichedFactoryChoice(bundle.factoryId.value, withCtx, disclosuresOf(bundle))
+        }
 
     // -- Lifecycle choice contexts (pre-wired to the RegistryService cluster recipe methods) -------
 

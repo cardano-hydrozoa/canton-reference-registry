@@ -25,13 +25,14 @@ trait AcsSource[F[_]]:
     def lockedHoldingDisclosures(allocationCids: List[Cid]): F[List[Disclosure]]
 
     /** Disclose the given `Holding`/`Token` contracts by id — the reusable primitive behind
-      * [[lockedHoldingDisclosures]] and the transfer-instruction handlers' `inputHoldingCids`. Ports
-      * `queryDisclosure' @Token` over a list of cids.
+      * [[lockedHoldingDisclosures]] and the transfer-instruction handlers' `inputHoldingCids`.
+      * Ports `queryDisclosure' @Token` over a list of cids.
       */
     def holdingDisclosures(holdingCids: List[Cid]): F[List[Disclosure]]
 
-    /** Read an `Allocation` interface view by cid: its authorizer account and the holdings it locked.
-      * Ports `queryInterfaceContractId @Allocation` + `.allocation.authorizer` / `.holdingCids`.
+    /** Read an `Allocation` interface view by cid: its authorizer account and the holdings it
+      * locked. Ports `queryInterfaceContractId @Allocation` + `.allocation.authorizer` /
+      * `.holdingCids`.
       */
     def allocation(cid: Cid): F[AllocationDetails]
 

@@ -38,8 +38,8 @@ final class RegistryService[F[_]](src: AcsSource[F])(using F: MonadThrow[F]):
 
     /** The shared core of every factory / lifecycle handler: read the rules + configs, then run the
       * pure [[Assemble.contextBundle]] for `accounts` with any `extraDisclosures` appended. The
-      * transfer factory (accounts from the choice arg) and the lifecycle handlers below all build on
-      * this.
+      * transfer factory (accounts from the choice arg) and the lifecycle handlers below all build
+      * on this.
       */
     def choiceContext(
         accounts: List[Account],
@@ -48,25 +48,43 @@ final class RegistryService[F[_]](src: AcsSource[F])(using F: MonadThrow[F]):
         for
             rules <- src.tokenRules
             configs <- src.accountConfigs
-            bundle <- F.fromEither(Assemble.contextBundle(rules, configs, accounts, extraDisclosures))
+            bundle <- F.fromEither(
+              Assemble.contextBundle(rules, configs, accounts, extraDisclosures)
+            )
         yield bundle
 
     // -- Lifecycle choice contexts (fan-out sites; each reads a view via `src`, then `choiceContext`)
 
     /** Cluster B — allocation lifecycle. Context for withdraw (`includeLocked = false`) or cancel
       * (`includeLocked = true`) of allocation `cid`: assemble for its authorizer, and for cancel
-      * additionally disclose the allocation's locked holdings. Port of
-      * `getWithdrawContextV2` / `getCancelContextV2`.
+      * additionally disclose the allocation's locked holdings. Port of `getWithdrawContextV2` /
+      * `getCancelContextV2`.
       */
-    def allocationContext(cid: Cid, includeLocked: Boolean): F[ContextBundle] = ???
+    def allocationContext(cid: Cid, includeLocked: Boolean): F[ContextBundle] =
+        for
+            details <- src.allocation(cid)
+            extra <-
+                if includeLocked then src.holdingDisclosures(details.holdingCids)
+                else List.empty[Disclosure].pure[F]
+            bundle <- choiceContext(List(details.authorizer), extra)
+        yield bundle
 
     /** Cluster C — allocation-instruction lifecycle. Context for withdraw/accept of instruction
       * `cid`: assemble for its authorizer. Port of `getAllocationInstructionContextV2`.
       */
-    def allocationInstructionContext(cid: Cid): F[ContextBundle] = ???
+    def allocationInstructionContext(cid: Cid): F[ContextBundle] =
+        for
+            details <- src.allocationInstruction(cid)
+            bundle <- choiceContext(List(details.authorizer))
+        yield bundle
 
-    /** Cluster D — transfer-instruction lifecycle. Context for accept/reject/withdraw of instruction
-      * `cid`: assemble for its sender + receiver, disclosing the instruction's `inputHoldingCids`.
-      * Port of `getTransferOfferContextV2`.
+    /** Cluster D — transfer-instruction lifecycle. Context for accept/reject/withdraw of
+      * instruction `cid`: assemble for its sender + receiver, disclosing the instruction's
+      * `inputHoldingCids`. Port of `getTransferOfferContextV2`.
       */
-    def transferInstructionContext(cid: Cid): F[ContextBundle] = ???
+    def transferInstructionContext(cid: Cid): F[ContextBundle] =
+        for
+            details <- src.transferInstruction(cid)
+            disc <- src.holdingDisclosures(details.inputHoldingCids)
+            bundle <- choiceContext(List(details.sender, details.receiver), disc)
+        yield bundle

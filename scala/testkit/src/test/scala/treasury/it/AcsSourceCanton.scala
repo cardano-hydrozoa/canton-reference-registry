@@ -19,9 +19,9 @@ import daml.splice.testing.tokens.testtokenv2.accountconfig.AccountConfig
 import daml.splice.testing.tokens.testtokenv2.holding.Token
 
 /** Canton-backed [[AcsSource]]: reads the registry admin's ACS over the Ledger API (with
-  * created-event blobs) and maps the codegen contracts to the service's domain types. Runs in `IO` —
-  * an unambiguous `MonadThrow` (unlike `EitherT[IO, Error, *]`), and [[RegistryService]] only needs
-  * to raise `AssembleError`, which is a `RuntimeException`.
+  * created-event blobs) and maps the codegen contracts to the service's domain types. Runs in `IO`
+  * — an unambiguous `MonadThrow` (unlike `EitherT[IO, Error, *]`), and [[RegistryService]] only
+  * needs to raise `AssembleError`, which is a `RuntimeException`.
   *
   * The interface views (`allocation`/`allocationInstruction`/`transferInstruction`) and the
   * holding/locked disclosures all list-and-filter-by-cid rather than fetching per cid — see
@@ -47,13 +47,14 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
           _.map(d => toContract(d, AccountConfigPayload(toDomainAccount(d.contract.data.account))))
         )
 
-    /** Disclose the given holdings via the `Token` *template* (as the Daml `queryDisclosure' @Token`
-      * does), selecting them by contract id. Two Ledger-API constraints force list-and-filter here
-      * (both diverge from the Daml's per-cid fetch): disclosures must come from the template read,
-      * not the `Holding` interface — an interface-filtered read carries no usable `createdEventBlob`,
-      * which the ledger rejects (`MISSING_FIELD: DisclosedContract.createdEventBlob`); and rxjava's
-      * `EventQueryService.getEventsByContractId` predates Canton's mandatory `event_format`
-      * (`MISSING_FIELD: event_format`), so there is no usable by-cid fetch.
+    /** Disclose the given holdings via the `Token` *template* (as the Daml
+      * `queryDisclosure' @Token` does), selecting them by contract id. Two Ledger-API constraints
+      * force list-and-filter here (both diverge from the Daml's per-cid fetch): disclosures must
+      * come from the template read, not the `Holding` interface — an interface-filtered read
+      * carries no usable `createdEventBlob`, which the ledger rejects (`MISSING_FIELD:
+      * DisclosedContract.createdEventBlob`); and rxjava's `EventQueryService.getEventsByContractId`
+      * predates Canton's mandatory `event_format` (`MISSING_FIELD: event_format`), so there is no
+      * usable by-cid fetch.
       */
     def holdingDisclosures(holdingCids: List[Cid]): IO[List[Disclosure]] =
         val wanted = holdingCids.map(_.value).toSet
@@ -71,8 +72,8 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
               }
             )
 
-    /** Port of `getLockedTokensForAllocationsD`: the union of the named allocations' locked holdings,
-      * disclosed via [[holdingDisclosures]].
+    /** Port of `getLockedTokensForAllocationsD`: the union of the named allocations' locked
+      * holdings, disclosed via [[holdingDisclosures]].
       */
     def lockedHoldingDisclosures(allocationCids: List[Cid]): IO[List[Disclosure]] =
         val wanted = allocationCids.map(_.value).toSet
@@ -115,11 +116,12 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
         cid: Cid,
     ): IO[LedgerClientCanton.Disclosed[Ct]] =
         runIO(ledger.activeWithDisclosure(filter, admin)).flatMap { ds =>
-            ds.find(_.contractId == cid.value).fold(
-              IO.raiseError[LedgerClientCanton.Disclosed[Ct]](
-                new RuntimeException(s"contract not found by id: ${cid.value}")
-              )
-            )(IO.pure)
+            ds.find(_.contractId == cid.value)
+                .fold(
+                  IO.raiseError[LedgerClientCanton.Disclosed[Ct]](
+                    new RuntimeException(s"contract not found by id: ${cid.value}")
+                  )
+                )(IO.pure)
         }
 
     private def toContract[Ct, A](d: LedgerClientCanton.Disclosed[Ct], payload: A): Contract[A] =

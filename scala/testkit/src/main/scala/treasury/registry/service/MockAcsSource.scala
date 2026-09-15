@@ -37,7 +37,11 @@ final class MockAcsSource[F[_]: Applicative](
         allocations.getOrElse(cid, sys.error(s"mock: no allocation $cid")).pure[F]
 
     def allocationInstruction(cid: Cid): F[AllocationInstructionDetails] =
-        allocationInstructions.getOrElse(cid, sys.error(s"mock: no allocation instruction $cid")).pure[F]
+        allocationInstructions
+            .getOrElse(cid, sys.error(s"mock: no allocation instruction $cid"))
+            .pure[F]
 
     def transferInstruction(cid: Cid): F[TransferDetails] =
-        transferInstructions.getOrElse(cid, sys.error(s"mock: no transfer instruction $cid")).pure[F]
+        transferInstructions
+            .getOrElse(cid, sys.error(s"mock: no transfer instruction $cid"))
+            .pure[F]
