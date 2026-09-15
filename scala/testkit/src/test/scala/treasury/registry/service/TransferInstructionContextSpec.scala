@@ -1,12 +1,14 @@
 package treasury.registry.service
 
 import scala.jdk.CollectionConverters.*
+import scala.jdk.OptionConverters.*
 
 import org.scalatest.funsuite.AnyFunSuite
 
-import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.registry.{RegistryApi, Tracer}
+
+import daml.splice.api.token.holdingv2.Account
 import treasury.registry.RegistryApi.OpenApiChoiceContext
 
 import daml.splice.api.token.transferinstructionv2.TransferInstruction
@@ -21,7 +23,8 @@ class TransferInstructionContextSpec extends AnyFunSuite:
     private type ErrOr[A] = Either[Throwable, A]
 
     // Owner-only accounts (Daml `basicAccount`: id ""), matched by the AccountConfigs below.
-    private def acct(owner: String): Account = Account(Some(PartyId(owner)), None, AccountId(""))
+    private def acct(owner: String): Account =
+        new Account(Some(owner).toJava, Option.empty[String].toJava, "")
     private val sender = acct("alice")
     private val receiver = acct("bob")
 

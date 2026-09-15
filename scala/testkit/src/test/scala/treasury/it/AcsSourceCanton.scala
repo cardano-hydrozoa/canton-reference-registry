@@ -1,7 +1,6 @@
 package treasury.it
 
 import scala.jdk.CollectionConverters.*
-import scala.jdk.OptionConverters.*
 
 import cats.effect.IO
 
@@ -12,7 +11,7 @@ import treasury.registry.service.*
 
 import daml.splice.api.token.allocationinstructionv2.AllocationInstruction
 import daml.splice.api.token.allocationv2.Allocation
-import daml.splice.api.token.holdingv2.Account as DamlAccount
+import daml.splice.api.token.holdingv2.Account
 import daml.splice.api.token.transferinstructionv2.TransferInstruction
 import daml.splice.testing.tokens.testtokenv2.TokenRules
 import daml.splice.testing.tokens.testtokenv2.accountconfig.AccountConfig
@@ -44,7 +43,7 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
 
     def accountConfigs: IO[List[Contract[AccountConfigPayload]]] =
         runIO(ledger.activeWithDisclosure(ContractFilter.of(AccountConfig.COMPANION), admin)).map(
-          _.map(d => toContract(d, AccountConfigPayload(toDomainAccount(d.contract.data.account))))
+          _.map(d => toContract(d, AccountConfigPayload(d.contract.data.account)))
         )
 
     /** Disclose the given holdings via the `Token` *template* (as the Daml
@@ -90,22 +89,21 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
         findByCid(Allocation.contractFilter(), cid).map { d =>
             val v = d.contract.data
             AllocationDetails(
-              toDomainAccount(v.allocation.authorizer),
+              v.allocation.authorizer,
               v.holdingCids.asScala.toList.map(h => Cid(h.contractId)),
             )
         }
 
-    def allocationInstruction(cid: Cid): IO[AllocationInstructionDetails] =
-        findByCid(AllocationInstruction.contractFilter(), cid).map { d =>
-            AllocationInstructionDetails(toDomainAccount(d.contract.data.allocation.authorizer))
-        }
+    def allocationInstruction(cid: Cid): IO[Account] =
+        findByCid(AllocationInstruction.contractFilter(), cid)
+            .map(_.contract.data.allocation.authorizer)
 
     def transferInstruction(cid: Cid): IO[TransferDetails] =
         findByCid(TransferInstruction.contractFilter(), cid).map { d =>
             val t = d.contract.data.transfer
             TransferDetails(
-              toDomainAccount(t.sender),
-              toDomainAccount(t.receiver),
+              t.sender,
+              t.receiver,
               t.inputHoldingCids.asScala.toList.map(h => Cid(h.contractId)),
             )
         }
@@ -131,13 +129,6 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
           payload,
           Blob(d.createdEventBlobBase64),
           SynchronizerId(d.synchronizerId),
-        )
-
-    private def toDomainAccount(a: DamlAccount): Account =
-        Account(
-          a.owner.toScala.map(PartyId(_)),
-          a.provider.toScala.map(PartyId(_)),
-          AccountId(a.id),
         )
 
     private def runIO[A](c: CantonM[A]): IO[A] =

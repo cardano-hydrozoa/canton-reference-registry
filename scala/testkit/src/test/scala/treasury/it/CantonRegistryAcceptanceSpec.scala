@@ -1,5 +1,7 @@
 package treasury.it
 
+import scala.jdk.OptionConverters.*
+
 import cats.effect.{IO, Resource}
 import cats.effect.testing.scalatest.AsyncIOSpec
 
@@ -9,6 +11,8 @@ import org.scalatest.funsuite.AsyncFunSuite
 
 import treasury.registry.service.*
 import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
+
+import daml.splice.api.token.holdingv2.Account
 
 /** Tier-2 (real-ledger) acceptance for the registry service's fetch+assemble path: boot Canton,
   * create the registry's `TokenRules`, then have [[RegistryService]] over [[AcsSourceCanton]]
@@ -59,7 +63,11 @@ class CantonRegistryAcceptanceSpec extends AsyncFunSuite, AsyncIOSpec:
                                 .flatMap(e => IO.fromEither(e))
                             bundle <- RegistryService(AcsSourceCanton(ledger, admin))
                                 .getAllocationFactory(
-                                  Account(Some(admin), None, AccountId("acc-none"))
+                                  new Account(
+                                    Some(admin.value).toJava,
+                                    Option.empty[String].toJava,
+                                    "acc-none"
+                                  )
                                 )
                         yield (Cid(rulesCid.contractId), bundle)
                     }

@@ -14,6 +14,7 @@ import treasury.registry.{RegistryApi, Tracer}
 import treasury.registry.service.*
 
 import daml.splice.api.token.allocationinstructionv2.{AllocationFactory_Allocate, AllocationInstruction}
+import daml.splice.api.token.holdingv2.Account
 import daml.splice.api.token.allocationv2.{Allocation, SettlementFactory_SettleBatch}
 import daml.splice.api.token.holdingv2.Holding
 import daml.splice.api.token.transferinstructionv2.TransferInstruction
@@ -37,7 +38,7 @@ object Cip0112ConformanceMockTest extends Properties("cip0112-conformance-mock")
     // requestedAt is a don't-care for context assembly; a fixed epoch keeps the property deterministic.
     private val requestedAt = Instant.EPOCH
     // Match the accounts the mock's AccountConfigs carry (basicAccount = owner only, id "").
-    private def domainAccount(p: PartyId): Account = Account(Some(p), None, AccountId(""))
+    private def domainAccount(p: PartyId): Account = p.basicAccount
 
     // 3-part `pkg:Module:Entity` template ids + base64 blobs, as LocalRegistryApi.parseIdentifier /
     // disclosuresOf expect.
@@ -65,8 +66,7 @@ object Cip0112ConformanceMockTest extends Properties("cip0112-conformance-mock")
       locked = Map(Cid("alloc-1") -> List(holdingDisc)),
       holdings = Map(Cid("h1") -> holdingDisc),
       allocations = Map(Cid("alloc-1") -> AllocationDetails(domainAccount(alice), List(Cid("h1")))),
-      allocationInstructions =
-          Map(Cid("ai-1") -> AllocationInstructionDetails(domainAccount(alice))),
+      allocationInstructions = Map(Cid("ai-1") -> domainAccount(alice)),
       transferInstructions = Map(
         Cid("ti-1") -> TransferDetails(domainAccount(alice), domainAccount(bob), List(Cid("h1")))
       ),

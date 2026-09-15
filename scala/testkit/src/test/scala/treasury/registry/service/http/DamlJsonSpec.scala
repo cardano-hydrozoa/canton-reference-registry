@@ -1,13 +1,16 @@
 package treasury.registry.service.http
 
+import scala.jdk.OptionConverters.*
+
 import io.circe.Json
 import io.circe.syntax.*
 
 import org.scalatest.funsuite.AnyFunSuite
 
-import treasury.PartyId
 import treasury.registry.service.*
 import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
+
+import daml.splice.api.token.holdingv2.Account
 
 /** Unit tests for the Daml-JSON boundary, kept separate from the HTTP plumbing so the
   * encoding-sensitive logic is pinned on its own. The exact AnyValue/ChoiceContext shapes asserted
@@ -17,6 +20,8 @@ class DamlJsonSpec extends AnyFunSuite:
 
     private def acctJson(owner: String, id: String): Json =
         Json.obj("owner" -> owner.asJson, "provider" -> Json.Null, "id" -> id.asJson)
+    private def acct(owner: String, id: String): Account =
+        new Account(Some(owner).toJava, None.toJava, id)
 
     test("renderChoiceContextData wraps values as a ChoiceContext record of AnyValue variants"):
         val values = Map(
@@ -45,13 +50,9 @@ class DamlJsonSpec extends AnyFunSuite:
 
     test("allocationAuthorizer extracts the account from Daml-JSON choiceArguments"):
         val ca = Json.obj("allocation" -> Json.obj("authorizer" -> acctJson("alice", "acc-alice")))
-        assert(
-          DamlJson.allocationAuthorizer(ca) == Right(
-            Account(Some(PartyId("alice")), None, AccountId("acc-alice"))
-          )
-        )
+        assert(DamlJson.allocationAuthorizer(ca) == Right(acct("alice", "acc-alice")))
 
-    test("settlementLegs and settlementAllocationCids extract legs and allocation cids"):
+    test("settlementAccounts and settlementAllocationCids extract accounts and allocation cids"):
         val ca = Json.obj(
           "transferLegs" -> Json.arr(
             Json.obj(
@@ -65,13 +66,7 @@ class DamlJsonSpec extends AnyFunSuite:
           ),
         )
         assert(
-          DamlJson.settlementLegs(ca) == Right(
-            List(
-              TransferLeg(
-                Account(Some(PartyId("alice")), None, AccountId("acc-alice")),
-                Account(Some(PartyId("bob")), None, AccountId("acc-bob"))
-              )
-            )
-          )
+          DamlJson.settlementAccounts(ca) ==
+              Right(List(acct("alice", "acc-alice"), acct("bob", "acc-bob")))
         )
         assert(DamlJson.settlementAllocationCids(ca) == Right(List(Cid("alloc-1"), Cid("alloc-2"))))

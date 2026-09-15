@@ -1,9 +1,12 @@
 package treasury.registry.service
 
+import scala.jdk.OptionConverters.*
+
 import org.scalatest.funsuite.AnyFunSuite
 
-import treasury.PartyId
 import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
+
+import daml.splice.api.token.holdingv2.Account
 
 /** Wiring test for [[RegistryService]] over the in-memory [[MockAcsSource]]: the F-level glue
   * fetches the ACS, delegates to the (separately conformance-tested) [[Assemble]] core, resolves
@@ -16,7 +19,7 @@ class RegistryServiceSpec extends AnyFunSuite:
         Either[Throwable, A] // has MonadThrow; keeps the wiring test synchronous
 
     private def acct(id: String, owner: String): Account =
-        Account(Some(PartyId(owner)), None, AccountId(id))
+        new Account(Some(owner).toJava, None.toJava, id)
     private def cfg(cidTag: String, account: Account): Contract[AccountConfigPayload] =
         Contract(
           Cid(cidTag),
@@ -54,10 +57,10 @@ class RegistryServiceSpec extends AnyFunSuite:
         val locked =
             Map(Cid("alloc-1") -> List(disc("locked-1")), Cid("alloc-2") -> List(disc("locked-2")))
         val svc = RegistryService(MockAcsSource[ErrOr](rules, configs, locked))
-        val legs = List(TransferLeg(alice, bob))
+        val accounts = List(alice, bob)
 
         val bundle = svc
-            .getSettlementFactory(legs, List(Cid("alloc-1"), Cid("alloc-2")))
+            .getSettlementFactory(accounts, List(Cid("alloc-1"), Cid("alloc-2")))
             .fold(err => fail(s"unexpected error: $err"), identity)
 
         assert(

@@ -4,6 +4,8 @@ import cats.syntax.all.*
 
 import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
 
+import daml.splice.api.token.holdingv2.Account
+
 /** Pure port of `TestTokenV2_RegistryV2`'s off-ledger context assembly —
   * `getAccountMapAndTokenRulesC` and the factory methods that call it. No effects: given the
   * contracts already read from the ledger, it builds the [[ContextBundle]]. This is the conformance
@@ -63,16 +65,16 @@ object Assemble:
     ): Either[AssembleError, ContextBundle] =
         contextBundle(tokenRules, allConfigs, List(authorizer))
 
-    /** Port of `registryApi_getSettlementFactoryV2`: accounts are the dedup'd sender+receiver of
-      * every leg; disclosures additionally include the locked holdings of each allocation (already
-      * resolved by the caller via [[AcsSource.lockedHoldingDisclosures]]).
+    /** Port of `registryApi_getSettlementFactoryV2`: `accounts` are the sender+receiver of every
+      * transfer leg (the caller extracts them off `SettlementFactory_SettleBatch.transferLegs`),
+      * dedup'd here; disclosures additionally include the locked holdings of each allocation
+      * (already resolved by the caller via [[AcsSource.lockedHoldingDisclosures]]).
       */
     def settlementFactory(
         tokenRules: Contract[TokenRulesPayload],
         allConfigs: List[Contract[AccountConfigPayload]],
-        legs: List[TransferLeg],
+        accounts: List[Account],
         lockedHoldings: List[Disclosure],
     ): Either[AssembleError, ContextBundle] =
         // dedup (Daml `DA.List.dedup`) = order-preserving, first-occurrence; List.distinct matches.
-        val accounts = legs.flatMap(l => List(l.sender, l.receiver)).distinct
-        contextBundle(tokenRules, allConfigs, accounts, lockedHoldings)
+        contextBundle(tokenRules, allConfigs, accounts.distinct, lockedHoldings)

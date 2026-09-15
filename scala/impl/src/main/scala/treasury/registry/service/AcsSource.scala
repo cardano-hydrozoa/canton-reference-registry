@@ -1,5 +1,7 @@
 package treasury.registry.service
 
+import daml.splice.api.token.holdingv2.Account
+
 /** Effectful seam supplying the contracts the pure [[Assemble]] core needs, by reading the registry
   * admin's ACS. Two implementations:
   *   - a mock backed by in-memory maps (fast service tests, Tier-1 harness), and
@@ -39,7 +41,7 @@ trait AcsSource[F[_]]:
     /** Read an `AllocationInstruction` interface view by cid: its authorizer account. Ports
       * `queryInterfaceContractId @AllocationInstruction` + `.allocation.authorizer`.
       */
-    def allocationInstruction(cid: Cid): F[AllocationInstructionDetails]
+    def allocationInstruction(cid: Cid): F[Account]
 
     /** Read a `TransferInstruction` interface view by cid: its sender/receiver accounts and the
       * `inputHoldingCids` it locked. Ports `queryInterfaceContractId @TransferInstruction` +

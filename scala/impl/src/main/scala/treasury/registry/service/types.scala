@@ -1,53 +1,24 @@
 package treasury.registry.service
 
-import treasury.PartyId
+import daml.splice.api.token.holdingv2.Account
 
 /** Domain types for the TestTokenV2 registry service — the Scala port of Splice's
-  * `TestTokenV2_RegistryV2` off-ledger API. Deliberately lightweight (no Daml Java codegen types)
-  * so the pure [[Assemble]] core and its conformance tests carry no codegen dependency; the codegen
-  * types appear only at the edges (the Canton [[AcsSource]] and the HTTP layer).
+  * `TestTokenV2_RegistryV2` off-ledger API. These model the registry's *off-chain* concerns that
+  * the Daml/OpenAPI definitions don't provide — the disclosure read-model ([[Contract]]/
+  * [[Disclosure]]), the choice-context values ([[CtxValue]]/[[ContextBundle]]), and opaque wire-id
+  * wrappers ([[Cid]]/[[Blob]]/[[TemplateId]]/[[SynchronizerId]]). Where an *authoritative* Daml
+  * type exists (accounts, transfer legs, instrument ids) we use the codegen type directly (e.g.
+  * `HoldingV2.Account`) — CIP-0112 and the Daml module docs deem those definitions authoritative,
+  * so re-modelling them would only invite drift.
   */
-
-// Identifier types: each is an opaque `String` (with an `apply` constructor and `value` extractor),
-// so distinct identifiers sharing the same representation can never be transposed. Party ids stay
-// [[treasury.PartyId]], the project-wide alias.
-
-/** A registry-local account identifier (`HoldingV2.Account.id`). */
-opaque type AccountId = String
-object AccountId:
-    def apply(s: String): AccountId = s
-    extension (a: AccountId) def value: String = a
-
-/** An instrument's textual identifier (`HoldingV2.InstrumentId.id`). */
-opaque type InstrumentId = String
-object InstrumentId:
-    def apply(s: String): InstrumentId = s
-    extension (i: InstrumentId) def value: String = i
-
-/** Port of Splice `Splice.Api.Token.HoldingV2.Account`: a holding account at a registry. `owner`/
-  * `provider` are the controlling parties (both optional, as in the standard — the registry's own
-  * "special" accounts have neither).
-  */
-final case class Account(owner: Option[PartyId], provider: Option[PartyId], id: AccountId)
-
-/** Port of `HoldingV2.InstrumentId`: an instrument = admin party + textual `id`. Defined for the
-  * transfer/settlement surface; not yet read by the flow.
-  */
-final case class Instrument(admin: PartyId, id: InstrumentId)
-
-/** One leg of a settlement batch: move the instrument from `sender` to `receiver`. Mirrors the
-  * `sender`/`receiver` accounts read off `SettlementFactory_SettleBatch.transferLegs` in the Daml
-  * `registryApi_getSettlementFactoryV2`.
-  */
-final case class TransferLeg(sender: Account, receiver: Account)
 
 /** The fields of an on-ledger contract's interface view that the lifecycle choice-context handlers
   * read (by contract id) to decide which accounts to assemble a context for, and which holdings to
-  * disclose. One per input contract type; ports the `queryInterfaceContractId` reads in
-  * `TestTokenV2_RegistryV2`'s `getWithdraw/Cancel/AllocationInstruction/TransferOffer` contexts.
+  * disclose. Ports the `queryInterfaceContractId` reads in `TestTokenV2_RegistryV2`'s
+  * `getWithdraw/Cancel/AllocationInstruction/TransferOffer` contexts. (These are read-projections
+  * of the on-ledger views, not authoritative types — hence bespoke.)
   */
 final case class AllocationDetails(authorizer: Account, holdingCids: List[Cid])
-final case class AllocationInstructionDetails(authorizer: Account)
 final case class TransferDetails(sender: Account, receiver: Account, inputHoldingCids: List[Cid])
 
 /** A contract id as it appears on the wire and inside `AnyValue` context values. Opaque so cids and

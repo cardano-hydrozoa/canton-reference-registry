@@ -37,11 +37,13 @@ final class RegistryRoutes[F[_]: Concurrent](svc: RegistryService[F]) extends Ht
         case req @ POST -> Root / "registry" / "allocation" / "v2" / "settlement-factory" =>
             for
                 body <- req.as[al.GetFactoryRequest]
-                legs <- Concurrent[F].fromEither(DamlJson.settlementLegs(body.choiceArguments))
+                accounts <- Concurrent[F].fromEither(
+                  DamlJson.settlementAccounts(body.choiceArguments)
+                )
                 cids <- Concurrent[F].fromEither(
                   DamlJson.settlementAllocationCids(body.choiceArguments)
                 )
-                bundle <- svc.getSettlementFactory(legs, cids)
+                bundle <- svc.getSettlementFactory(accounts, cids)
                 resp <- Ok(toAlFactory(bundle))
             yield resp
     }

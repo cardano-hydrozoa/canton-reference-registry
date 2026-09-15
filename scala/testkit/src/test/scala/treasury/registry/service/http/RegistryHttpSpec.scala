@@ -1,5 +1,7 @@
 package treasury.registry.service.http
 
+import scala.jdk.OptionConverters.*
+
 import cats.effect.IO
 import cats.effect.testing.scalatest.AsyncIOSpec
 
@@ -13,8 +15,9 @@ import org.http4s.implicits.*
 
 import org.scalatest.funsuite.AsyncFunSuite
 
-import treasury.PartyId
 import treasury.registry.service.*
+
+import daml.splice.api.token.holdingv2.Account
 
 import treasury.registry.openapi.alloc.models as al
 import treasury.registry.openapi.allocinstr.models as ai
@@ -27,12 +30,12 @@ import treasury.registry.openapi.allocinstr.models as ai
 class RegistryHttpSpec extends AsyncFunSuite, AsyncIOSpec:
 
     private def acct(id: String, owner: String): Account =
-        Account(Some(PartyId(owner)), None, AccountId(id))
+        new Account(Some(owner).toJava, Option.empty[String].toJava, id)
     private def acctJson(a: Account): Json =
         Json.obj(
-          "owner" -> a.owner.map(_.value).asJson,
-          "provider" -> a.provider.map(_.value).asJson,
-          "id" -> a.id.value.asJson
+          "owner" -> a.owner.toScala.asJson,
+          "provider" -> a.provider.toScala.asJson,
+          "id" -> a.id.asJson
         )
     private def cfg(cidTag: String, account: Account): Contract[AccountConfigPayload] =
         Contract(

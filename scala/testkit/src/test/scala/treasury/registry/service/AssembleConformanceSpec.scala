@@ -1,9 +1,12 @@
 package treasury.registry.service
 
+import scala.jdk.OptionConverters.*
+
 import org.scalatest.funsuite.AnyFunSuite
 
-import treasury.PartyId
 import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
+
+import daml.splice.api.token.holdingv2.Account
 
 /** Tier-1 conformance: structural properties of the pure [[Assemble]] core, with the spec derived
   * by reading Splice `TestTokenV2_RegistryV2.getAccountMapAndTokenRulesC` (and the two factory
@@ -27,7 +30,7 @@ import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
 class AssembleConformanceSpec extends AnyFunSuite:
 
     private def acct(id: String, owner: String): Account =
-        Account(Some(PartyId(owner)), None, AccountId(id))
+        new Account(Some(owner).toJava, None.toJava, id)
     private def cfg(cidTag: String, account: Account): Contract[AccountConfigPayload] =
         Contract(
           Cid(cidTag),
@@ -130,10 +133,10 @@ class AssembleConformanceSpec extends AnyFunSuite:
 
     test("settlementFactory dedups leg parties (first-occurrence order) and appends locked blobs"):
         // legs: alice->bob, bob->carol  =>  [alice, bob, bob, carol] dedup => [alice, bob, carol]
-        val legs = List(TransferLeg(alice, bob), TransferLeg(bob, carol))
+        val accounts = List(alice, bob, bob, carol)
         val configs = List(cfg("cfgA", alice), cfg("cfgB", bob), cfg("cfgC", carol))
         val locked = List(disc("locked-1"))
-        val b = right(Assemble.settlementFactory(rules, configs, legs, locked))
+        val b = right(Assemble.settlementFactory(rules, configs, accounts, locked))
         assert(
           b.values(ContextKeys.accountConfigs) ==
               CtxList(

@@ -3,6 +3,8 @@ package treasury.registry.service
 import cats.MonadThrow
 import cats.syntax.all.*
 
+import daml.splice.api.token.holdingv2.Account
+
 /** The F-level registry: fetch contracts via [[AcsSource]], assemble the choice context via
   * [[Assemble]]. Exposes the two off-ledger endpoints the treasury / cross-registry-swap flow needs
   * (`getAllocationFactory`, `getSettlementFactory`); the remaining `RegistryApiV2` surface
@@ -28,12 +30,15 @@ final class RegistryService[F[_]](src: AcsSource[F])(using F: MonadThrow[F]):
       * dedup'd leg parties, plus locked-holding disclosures for each allocation. See
       * `registryApi_getSettlementFactoryV2`.
       */
-    def getSettlementFactory(legs: List[TransferLeg], allocationCids: List[Cid]): F[ContextBundle] =
+    def getSettlementFactory(
+        accounts: List[Account],
+        allocationCids: List[Cid],
+    ): F[ContextBundle] =
         for
             rules <- src.tokenRules
             configs <- src.accountConfigs
             locked <- src.lockedHoldingDisclosures(allocationCids)
-            bundle <- F.fromEither(Assemble.settlementFactory(rules, configs, legs, locked))
+            bundle <- F.fromEither(Assemble.settlementFactory(rules, configs, accounts, locked))
         yield bundle
 
     /** The shared core of every factory / lifecycle handler: read the rules + configs, then run the
@@ -74,8 +79,8 @@ final class RegistryService[F[_]](src: AcsSource[F])(using F: MonadThrow[F]):
       */
     def allocationInstructionContext(cid: Cid): F[ContextBundle] =
         for
-            details <- src.allocationInstruction(cid)
-            bundle <- choiceContext(List(details.authorizer))
+            authorizer <- src.allocationInstruction(cid)
+            bundle <- choiceContext(List(authorizer))
         yield bundle
 
     /** Cluster D — transfer-instruction lifecycle. Context for accept/reject/withdraw of

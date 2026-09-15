@@ -3,6 +3,8 @@ package treasury.registry.service
 import cats.Applicative
 import cats.syntax.all.*
 
+import daml.splice.api.token.holdingv2.Account
+
 /** In-memory [[AcsSource]] for service tests, generic over any `Applicative[F]` (never errors — the
   * only registry error, a duplicate account config, arises in [[Assemble]] and is raised by
   * [[RegistryService]]). Used with `Either[Throwable, *]` for the pure wiring test and `IO` for the
@@ -18,8 +20,7 @@ final class MockAcsSource[F[_]: Applicative](
     locked: Map[Cid, List[Disclosure]] = Map.empty[Cid, List[Disclosure]],
     holdings: Map[Cid, Disclosure] = Map.empty[Cid, Disclosure],
     allocations: Map[Cid, AllocationDetails] = Map.empty[Cid, AllocationDetails],
-    allocationInstructions: Map[Cid, AllocationInstructionDetails] =
-        Map.empty[Cid, AllocationInstructionDetails],
+    allocationInstructions: Map[Cid, Account] = Map.empty[Cid, Account],
     transferInstructions: Map[Cid, TransferDetails] = Map.empty[Cid, TransferDetails],
 ) extends AcsSource[F]:
 
@@ -36,7 +37,7 @@ final class MockAcsSource[F[_]: Applicative](
     def allocation(cid: Cid): F[AllocationDetails] =
         allocations.getOrElse(cid, sys.error(s"mock: no allocation $cid")).pure[F]
 
-    def allocationInstruction(cid: Cid): F[AllocationInstructionDetails] =
+    def allocationInstruction(cid: Cid): F[Account] =
         allocationInstructions
             .getOrElse(cid, sys.error(s"mock: no allocation instruction $cid"))
             .pure[F]

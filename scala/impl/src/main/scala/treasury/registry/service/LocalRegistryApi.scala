@@ -2,7 +2,6 @@ package treasury.registry.service
 
 import java.util.Base64
 import scala.jdk.CollectionConverters.*
-import scala.jdk.OptionConverters.*
 
 import cats.MonadThrow
 import cats.syntax.all.*
@@ -10,13 +9,11 @@ import cats.syntax.all.*
 import com.daml.ledger.javaapi.data.{DisclosedContract, Identifier}
 import com.google.protobuf.ByteString
 
-import treasury.PartyId
 import treasury.registry.{RegistryApi, RegistryApiEvent, Tracer}
 import treasury.registry.RegistryApi.{EnrichedFactoryChoice, OpenApiChoiceContext}
 
 import daml.splice.api.token.allocationinstructionv2.{AllocationFactory_Allocate, AllocationInstruction}
 import daml.splice.api.token.allocationv2.{Allocation, SettlementFactory_SettleBatch}
-import daml.splice.api.token.holdingv2.Account as DamlAccount
 import daml.splice.api.token.metadatav1.{AnyContract, AnyValue, ChoiceContext, ExtraArgs, Metadata}
 import daml.splice.api.token.metadatav1.anyvalue.{AV_ContractId, AV_List}
 import daml.splice.api.token.transferinstructionv2.{TransferFactory_Transfer, TransferInstruction}
@@ -41,7 +38,7 @@ final class LocalRegistryApi[F[_]](
     override def getAllocationFactory(
         arg: AllocationFactory_Allocate
     ): F[EnrichedFactoryChoice[AllocationFactory_Allocate]] =
-        service.getAllocationFactory(toDomainAccount(arg.allocation.authorizer)).map { bundle =>
+        service.getAllocationFactory(arg.allocation.authorizer).map { bundle =>
             val withCtx = new AllocationFactory_Allocate(
               arg.settlement,
               arg.allocation,
@@ -56,12 +53,11 @@ final class LocalRegistryApi[F[_]](
     override def getSettlementFactory(
         arg: SettlementFactory_SettleBatch
     ): F[EnrichedFactoryChoice[SettlementFactory_SettleBatch]] =
-        val legs = arg.transferLegs.asScala.toList.map(l =>
-            TransferLeg(toDomainAccount(l.sender), toDomainAccount(l.receiver))
-        )
+        val accounts =
+            arg.transferLegs.asScala.toList.flatMap(l => List(l.sender, l.receiver))
         val allocationCids =
             arg.allocations.asScala.toList.map(fa => Cid(fa.allocationCid.contractId))
-        service.getSettlementFactory(legs, allocationCids).map { bundle =>
+        service.getSettlementFactory(accounts, allocationCids).map { bundle =>
             val withCtx = new SettlementFactory_SettleBatch(
               arg.settlement,
               arg.transferLegs,
@@ -83,9 +79,7 @@ final class LocalRegistryApi[F[_]](
     override def getTransferFactory(
         arg: TransferFactory_Transfer
     ): F[EnrichedFactoryChoice[TransferFactory_Transfer]] =
-        val senderDom = toDomainAccount(arg.transfer.sender)
-        val receiverDom = toDomainAccount(arg.transfer.receiver)
-        service.choiceContext(List(senderDom, receiverDom)).map { bundle =>
+        service.choiceContext(List(arg.transfer.sender, arg.transfer.receiver)).map { bundle =>
             val withCtx = new TransferFactory_Transfer(
               arg.transfer,
               arg.actors,
@@ -174,10 +168,3 @@ final class LocalRegistryApi[F[_]](
         s.split(":") match
             case Array(pkg, module, entity) => new Identifier(pkg, module, entity)
             case _ => throw RegistryApi.Error.Decode(s"malformed template id: $s")
-
-    private def toDomainAccount(a: DamlAccount): Account =
-        Account(
-          a.owner.toScala.map(PartyId(_)),
-          a.provider.toScala.map(PartyId(_)),
-          AccountId(a.id)
-        )

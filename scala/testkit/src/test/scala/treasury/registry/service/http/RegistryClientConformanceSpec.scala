@@ -20,6 +20,7 @@ import treasury.registry.service.*
 import treasury.registry.testkit.{Cip0112Conformance, ContextView}
 
 import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.holdingv2.Account
 
 /** Conformance of the HTTP client [[RegistryBackendHttp]] to the CIP-0112 normative properties,
   * over the two factory endpoints it serves. Reuses [[Cip0112Conformance]]'s check predicates (P1
@@ -38,7 +39,7 @@ class RegistryClientConformanceSpec extends AsyncFunSuite, AsyncIOSpec:
 
     private def b64(s: String): String = Base64.getEncoder.encodeToString(s.getBytes)
     private def tid(e: String): TemplateId = TemplateId(s"pkg:Splice.Testing.Tokens.TestTokenV2:$e")
-    private def basic(p: PartyId): Account = Account(Some(p), None, AccountId(""))
+    private def basic(p: PartyId): Account = p.basicAccount
 
     private val rules: Contract[TokenRulesPayload] =
         Contract(Cid("rules"), tid("TokenRules"), (), Blob(b64("rules")), SynchronizerId("sync-1"))

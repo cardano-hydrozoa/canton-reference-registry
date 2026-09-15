@@ -1,12 +1,14 @@
 package treasury.registry.service
 
 import scala.jdk.CollectionConverters.*
+import scala.jdk.OptionConverters.*
 
 import org.scalatest.funsuite.AnyFunSuite
 
-import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.registry.{RegistryApiEvent, Tracer}
+
+import daml.splice.api.token.holdingv2.Account
 
 import daml.splice.api.token.allocationv2.Allocation
 
@@ -20,7 +22,7 @@ class AllocationContextSpec extends AnyFunSuite:
     private type ErrOr[A] = Either[Throwable, A]
 
     private val basicAuthorizer: Account =
-        Account(Some(PartyId("alice")), None, AccountId("acc-alice"))
+        new Account(Some("alice").toJava, Option.empty[String].toJava, "acc-alice")
 
     // 3-part `pkg:Module:Entity` template ids, as LocalRegistryApi.parseIdentifier expects.
     private val rules: Contract[TokenRulesPayload] =

@@ -19,6 +19,7 @@ import treasury.registry.{RegistryApiEvent, Tracer}
 import treasury.registry.service.*
 
 import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.holdingv2.Account
 
 /** End-to-end round-trip of the HTTP registry pair with no socket: [[RegistryBackendHttp]] (client)
   * → an `http4s` `Client.fromHttpApp` over [[RegistryRoutes]] (server) → a [[MockAcsSource]]-backed
@@ -42,7 +43,7 @@ class RegistryClientRoundTripSpec extends AsyncFunSuite, AsyncIOSpec:
         TemplateId(s"pkg:Splice.Testing.Tokens.TestTokenV2:$entity")
 
     // The basic-account domain account the server extracts from the encoded arg (owner-only, id "").
-    private def basic(p: PartyId): Account = Account(Some(p), None, AccountId(""))
+    private def basic(p: PartyId): Account = p.basicAccount
 
     private val rules: Contract[TokenRulesPayload] =
         Contract(Cid("rules"), tid("TokenRules"), (), Blob(b64("rules")), SynchronizerId("sync-1"))

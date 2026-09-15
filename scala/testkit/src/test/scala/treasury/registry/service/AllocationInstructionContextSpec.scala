@@ -1,12 +1,14 @@
 package treasury.registry.service
 
 import scala.jdk.CollectionConverters.*
+import scala.jdk.OptionConverters.*
 
 import org.scalatest.funsuite.AnyFunSuite
 
-import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.registry.{RegistryApi, RegistryApiEvent, Tracer}
+
+import daml.splice.api.token.holdingv2.Account
 
 import daml.splice.api.token.allocationinstructionv2.AllocationInstruction
 
@@ -20,7 +22,8 @@ class AllocationInstructionContextSpec extends AnyFunSuite:
     private type ErrOr[A] = Either[Throwable, A]
 
     // basicAccount = owner-only, id "" (matches the config below and Daml's `basicAccount`).
-    private val basicAuthorizer: Account = Account(Some(PartyId("alice")), None, AccountId(""))
+    private val basicAuthorizer: Account =
+        new Account(Some("alice").toJava, Option.empty[String].toJava, "")
 
     // 3-part `pkg:Module:Entity` template ids + base64 blobs — LocalRegistryApi renders every
     // disclosure via parseIdentifier (split-on-":") + Base64 decode.
@@ -49,8 +52,7 @@ class AllocationInstructionContextSpec extends AnyFunSuite:
             MockAcsSource[ErrOr](
               rules,
               configs,
-              allocationInstructions =
-                  Map(Cid("ai1") -> AllocationInstructionDetails(basicAuthorizer)),
+              allocationInstructions = Map(Cid("ai1") -> basicAuthorizer),
             )
           ),
           Tracer.noop[ErrOr, RegistryApiEvent],

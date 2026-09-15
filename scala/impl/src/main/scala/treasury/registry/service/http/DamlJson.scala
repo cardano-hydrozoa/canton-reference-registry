@@ -1,13 +1,16 @@
 package treasury.registry.service.http
 
+import scala.jdk.OptionConverters.*
+
 import cats.syntax.all.*
 
 import io.circe.{Decoder, DecodingFailure, Json}
 import io.circe.syntax.*
 
-import treasury.PartyId
 import treasury.registry.service.*
 import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
+
+import daml.splice.api.token.holdingv2.Account
 
 /** The Daml-JSON-encoding-sensitive boundary of the registry service, isolated here so it can be
   * unit-tested on its own and swapped/verified against the canonical Daml Java-codegen encoder when
@@ -33,14 +36,7 @@ object DamlJson:
             owner <- c.get[Option[String]]("owner")
             provider <- c.get[Option[String]]("provider")
             id <- c.get[String]("id")
-        yield Account(owner.map(PartyId(_)), provider.map(PartyId(_)), AccountId(id))
-    }
-
-    private given legDecoder: Decoder[TransferLeg] = Decoder.instance { c =>
-        for
-            sender <- c.get[Account]("sender")
-            receiver <- c.get[Account]("receiver")
-        yield TransferLeg(sender, receiver)
+        yield new Account(owner.toJava, provider.toJava, id)
     }
 
     /** `AllocationFactory_Allocate.allocation.authorizer` — the single account of the allocation.
@@ -48,9 +44,19 @@ object DamlJson:
     def allocationAuthorizer(choiceArguments: Json): Either[DecodingFailure, Account] =
         choiceArguments.hcursor.downField("allocation").downField("authorizer").as[Account]
 
-    /** `SettlementFactory_SettleBatch.transferLegs[].{sender,receiver}`. */
-    def settlementLegs(choiceArguments: Json): Either[DecodingFailure, List[TransferLeg]] =
-        choiceArguments.hcursor.downField("transferLegs").as[List[TransferLeg]]
+    /** The sender + receiver accounts of every `SettlementFactory_SettleBatch.transferLeg` (the
+      * assembly dedups them; only the accounts drive the context).
+      */
+    def settlementAccounts(choiceArguments: Json): Either[DecodingFailure, List[Account]] =
+        choiceArguments.hcursor
+            .downField("transferLegs")
+            .as[List[Json]]
+            .flatMap(_.traverse { leg =>
+                for
+                    sender <- leg.hcursor.get[Account]("sender")
+                    receiver <- leg.hcursor.get[Account]("receiver")
+                yield List(sender, receiver)
+            }.map(_.flatten))
 
     /** `SettlementFactory_SettleBatch.allocations[].allocationCid` (a contract id = JSON string).
       */
