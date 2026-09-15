@@ -94,6 +94,7 @@ lazy val api = (project in file("api"))
         "allocation-instruction-v2.yaml" -> "tokenstandard.registry.openapi.allocinstr",
         "allocation-v2.yaml" -> "tokenstandard.registry.openapi.alloc",
         "metadata-v1.yaml" -> "tokenstandard.registry.openapi.metadata",
+        "transfer-instruction-v2.yaml" -> "tokenstandard.registry.openapi.transfer",
       ),
       tokenStandardDars := Seq(
         "splice-api-token-metadata-v1-1.0.0.dar",

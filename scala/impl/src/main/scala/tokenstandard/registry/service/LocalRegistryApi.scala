@@ -87,7 +87,8 @@ final class LocalRegistryApi[F[_]](
             EnrichedFactoryChoice(bundle.factoryId.value, withCtx, disclosuresOf(bundle))
         }
 
-    /** Port of `registryApi_getTransferFactoryV2`: assemble for the transfer's sender + receiver. */
+    /** Port of `registryApi_getTransferFactoryV2`: assemble for the transfer's sender + receiver.
+      */
     override def getTransferFactory(
         arg: TransferFactory_Transfer
     ): F[EnrichedFactoryChoice[TransferFactory_Transfer]] =

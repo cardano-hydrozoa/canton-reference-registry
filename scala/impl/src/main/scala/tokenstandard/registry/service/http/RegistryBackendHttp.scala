@@ -28,6 +28,7 @@ import tokenstandard.registry.RegistryApi.OpenApiChoiceContext
 import tokenstandard.registry.openapi.alloc.models as al
 import tokenstandard.registry.openapi.allocinstr.models as ai
 import tokenstandard.registry.openapi.metadata.models as md
+import tokenstandard.registry.openapi.transfer.models as tr
 
 import java.util.Base64
 import scala.jdk.CollectionConverters.*
@@ -44,9 +45,8 @@ import scala.util.Try
   * `client` is the http4s `Client[F]` abstraction, so the caller injects the concrete backend
   * (ember in prod, `Client.fromHttpApp(routes)` in tests).
   *
-  * Only two OpenAPI specs are codegen'd (`ai` = allocation-instruction, `al` = allocation), giving
-  * identical DTO shapes in two packages; there is no transfer-instruction DTO package, so the
-  * transfer endpoints reuse `ai`.
+  * Request/response DTOs come from each endpoint's own spec package (`ai` / `al` / `tr` / `md`);
+  * the lifecycle-context responses share one shape across specs and are decoded via `ai`.
   */
 final class RegistryBackendHttp[F[_]: Concurrent](
     client: Client[F],
@@ -59,9 +59,14 @@ final class RegistryBackendHttp[F[_]: Concurrent](
         arg: TransferFactory_Transfer
     ): F[EnrichedFactoryChoice[TransferFactory_Transfer]] =
         val uri = baseUri / "registry" / "transfer-instruction" / "v2" / "transfer-factory"
-        val body = ai.GetFactoryRequest(damlJson(arg.jsonEncoder().intoString()), None)
+        val body = tr.GetFactoryRequest(damlJson(arg.jsonEncoder().intoString()), None)
         client
-            .expect[ai.FactoryWithChoiceContext](Request[F](Method.POST, uri).withEntity(body))
+            // The response additionally carries the REQUIRED `transferKind` (offer/direct/self);
+            // EnrichedFactoryChoice ports the Daml type, which has no kind, so it is validated by
+            // the decode and dropped here.
+            .expect[tr.TransferFactoryWithChoiceContext](
+              Request[F](Method.POST, uri).withEntity(body)
+            )
             .flatMap { r =>
                 enriched(
                   r.factoryId,
@@ -283,6 +288,11 @@ final class RegistryBackendHttp[F[_]: Concurrent](
               e => throw RegistryApi.Error.Decode(s"choiceArguments JSON: ${e.message}"),
               identity
             )
+
+    private def disclosures(ctx: tr.ChoiceContext): List[(String, String, String, String)] =
+        ctx.disclosedContracts.toList.map(d =>
+            (d.templateId, d.contractId, d.createdEventBlob, d.synchronizerId)
+        )
 
     private def disclosures(ctx: ai.ChoiceContext): List[(String, String, String, String)] =
         ctx.disclosedContracts.toList.map(d =>

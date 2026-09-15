@@ -2,12 +2,14 @@ package tokenstandard.registry.service.http
 
 import cats.effect.Concurrent
 import cats.syntax.all.*
+import daml.splice.api.token.holdingv2.Account
 import org.http4s.HttpRoutes
 import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.dsl.Http4sDsl
 import tokenstandard.registry.openapi.alloc.models as al
 import tokenstandard.registry.openapi.allocinstr.models as ai
 import tokenstandard.registry.openapi.metadata.models as md
+import tokenstandard.registry.openapi.transfer.models as tr
 import tokenstandard.registry.service.*
 
 /** http4s routes serving the CIP-0112 registry endpoints, backed by a [[RegistryService]] (ledger
@@ -16,10 +18,11 @@ import tokenstandard.registry.service.*
   *   - the seven allocation- / transfer-instruction lifecycle choice contexts, and
   *   - the three metadata-v1 endpoints (registry info, instrument list/lookup).
   *
-  * The response DTOs are generated per-spec (identical shapes in distinct packages: `ai` =
-  * allocation-instruction, `al` = allocation, `md` = metadata); there is no transfer-instruction
-  * spec, so the transfer routes reuse `ai`. Each factory route maps [[ContextBundle]] into a
-  * `FactoryWithChoiceContext`; each lifecycle route maps it into a `ChoiceContext` (no factory id).
+  * The response DTOs are generated per-spec (`ai` = allocation-instruction, `al` = allocation, `tr` =
+  * transfer-instruction, `md` = metadata). Each factory route maps [[ContextBundle]] into its
+  * spec's factory response — note the transfer factory's differs (required `transferKind`) — and
+  * each lifecycle route maps it into a `ChoiceContext` (no factory id; the shape is identical
+  * across specs, rendered via the `ai` package).
   */
 final class RegistryRoutes[F[_]: Concurrent](svc: RegistryService[F], metadata: RegistryMetadata)
     extends Http4sDsl[F]:
@@ -44,12 +47,12 @@ final class RegistryRoutes[F[_]: Concurrent](svc: RegistryService[F], metadata: 
         // -- Factories -----------------------------------------------------------------------------
         case req @ POST -> Root / "registry" / "transfer-instruction" / "v2" / "transfer-factory" =>
             for
-                body <- req.as[ai.GetFactoryRequest]
+                body <- req.as[tr.GetFactoryRequest]
                 accounts <- Concurrent[F].fromEither(
                   DamlJson.transferAccounts(body.choiceArguments)
                 )
                 bundle <- svc.choiceContext(accounts)
-                resp <- Ok(toAiFactory(bundle))
+                resp <- Ok(toTrFactory(bundle, transferKind(accounts)))
             yield resp
 
         case req @ POST -> Root / "registry" / "allocation-instruction" / "v2" / "allocation-factory" =>
@@ -119,6 +122,42 @@ final class RegistryRoutes[F[_]: Concurrent](svc: RegistryService[F], metadata: 
           factoryId = b.factoryId.value,
           choiceContext = toContext(b),
         )
+
+    /** The transfer factory's response schema differs from the other factories': it additionally
+      * REQUIRES `transferKind`.
+      */
+    private def toTrFactory(
+        b: ContextBundle,
+        kind: tr.TransferFactoryWithChoiceContextTransferKind,
+    ): tr.TransferFactoryWithChoiceContext =
+        tr.TransferFactoryWithChoiceContext(
+          factoryId = b.factoryId.value,
+          transferKind = kind,
+          choiceContext = tr.ChoiceContext(
+            choiceContextData = DamlJson.renderChoiceContextData(b.values),
+            disclosedContracts = b.disclosures.map(d =>
+                tr.DisclosedContract(
+                  d.templateId.value,
+                  d.contractId.value,
+                  d.createdEventBlob.value,
+                  d.synchronizerId.value
+                )
+            ),
+          ),
+        )
+
+    /** TestTokenV2's transfer workflow: the factory creates a `TokenTransferOffer` the receiver
+      * must accept (`offer`), except a self-transfer, where offerer and acceptor collapse and the
+      * transfer completes immediately (`self`). It has no pre-approval mechanism, so never
+      * `direct`.
+      */
+    private def transferKind(
+        accounts: List[Account]
+    ): tr.TransferFactoryWithChoiceContextTransferKind =
+        accounts match
+            case sender :: receiver :: Nil if sender == receiver =>
+                tr.TransferFactoryWithChoiceContextTransferKind.Self
+            case _ => tr.TransferFactoryWithChoiceContextTransferKind.Offer
 
     private def toAlFactory(b: ContextBundle): al.FactoryWithChoiceContext =
         al.FactoryWithChoiceContext(

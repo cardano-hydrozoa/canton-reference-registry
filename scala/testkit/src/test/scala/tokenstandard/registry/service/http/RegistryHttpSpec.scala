@@ -12,6 +12,7 @@ import org.http4s.implicits.*
 import org.scalatest.funsuite.AsyncFunSuite
 import tokenstandard.registry.openapi.alloc.models as al
 import tokenstandard.registry.openapi.allocinstr.models as ai
+import tokenstandard.registry.openapi.transfer.models as tr
 import tokenstandard.registry.service.*
 
 import scala.jdk.OptionConverters.*
@@ -110,3 +111,25 @@ class RegistryHttpSpec extends AsyncFunSuite, AsyncIOSpec:
                   .map(_.contractId) == List("rules", "cfgA", "cfgB", "locked-1")
             )
         }
+
+    test("transfer-factory serves the transfer schema: required transferKind (offer vs self)"):
+        val svc = RegistryService(MockAcsSource[IO](rules, Nil))
+        def req(sender: Account, receiver: Account) =
+            Request[IO](Method.POST, uri"/registry/transfer-instruction/v2/transfer-factory")
+                .withEntity(
+                  tr.GetFactoryRequest(choiceArguments =
+                      Json.obj(
+                        "transfer" -> Json.obj(
+                          "sender" -> acctJson(sender),
+                          "receiver" -> acctJson(receiver),
+                        )
+                      )
+                  )
+                )
+        for
+            offer <- client(svc).expect[tr.TransferFactoryWithChoiceContext](req(alice, bob))
+            self <- client(svc).expect[tr.TransferFactoryWithChoiceContext](req(alice, alice))
+        yield
+            assert(offer.factoryId == "rules")
+            assert(offer.transferKind == tr.TransferFactoryWithChoiceContextTransferKind.Offer)
+            assert(self.transferKind == tr.TransferFactoryWithChoiceContextTransferKind.Self)
