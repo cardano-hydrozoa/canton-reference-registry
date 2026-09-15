@@ -94,19 +94,15 @@ trait RegistryApi[F[_]]:
 
 object RegistryApi:
 
-    /** A disclosed contract the submitter must attach so admin-owned contracts (factory rules,
-      * account configs, locked holdings) are visible in its transaction.
-      */
-    type Disclosure = DisclosedContract
-
     /** Daml's `EnrichedFactoryChoice`: the factory contract to exercise on, the choice argument
-      * with `extraArgs.context` filled in, and the disclosures to attach. `factoryCid` is an opaque
-      * contract-id string.
+      * with `extraArgs.context` filled in, and the disclosures to attach (the admin-owned contracts
+      * — factory rules, account configs, locked holdings — the submitter must make visible in its
+      * transaction). `factoryCid` is an opaque contract-id string.
       */
     final case class EnrichedFactoryChoice[Arg](
         factoryCid: String,
         arg: Arg,
-        disclosures: List[Disclosure],
+        disclosures: List[DisclosedContract],
     )
 
     /** Daml's `OpenApiChoiceContext`: the choice context to pass in `extraArgs.context` plus the
@@ -114,7 +110,7 @@ object RegistryApi:
       */
     final case class OpenApiChoiceContext(
         choiceContext: ChoiceContext,
-        disclosures: List[Disclosure],
+        disclosures: List[DisclosedContract],
     )
 
     enum Error(val message: String) extends RuntimeException(message):

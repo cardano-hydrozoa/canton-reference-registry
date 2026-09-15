@@ -14,7 +14,7 @@ import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.client.Client
 
 import treasury.registry.{RegistryApi, RegistryApiEvent, Tracer}
-import treasury.registry.RegistryApi.{Disclosure, EnrichedFactoryChoice}
+import treasury.registry.RegistryApi.EnrichedFactoryChoice
 
 import treasury.registry.openapi.allocinstr.models as ai
 import treasury.registry.openapi.alloc.models as al
@@ -105,7 +105,7 @@ final class RegistryBackendHttp[F[_]: Concurrent](
     )(rebuild: ChoiceContext => A): F[EnrichedFactoryChoice[A]] =
         Concurrent[F].fromEither(Try {
             val ctx = ChoiceContext.fromJson(choiceContextData.noSpaces)
-            val ds: List[Disclosure] =
+            val ds: List[DisclosedContract] =
                 discs.map { case (templateId, contractId, blob, synchronizerId) =>
                     new DisclosedContract(
                       parseIdentifier(templateId),
