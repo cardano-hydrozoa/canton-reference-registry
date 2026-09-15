@@ -74,8 +74,10 @@ def resolveDamlCodegenJar(): File =
         }
     }
 
-// The interface project: the CIP-0112 RegistryApi trait + the generated on-ledger Daml bindings and
-// wire DTOs it exposes. Hydrozoa's src tree depends on this. Runs both code generators.
+// The interface project: the two seams a consumer needs — the CIP-0112 RegistryApi trait
+// (tokenstandard.registry) and the LedgerClient trait (tokenstandard.ledger) — plus shared domain
+// types (PartyId) and the generated on-ledger Daml bindings and wire DTOs they expose. Hydrozoa's
+// src tree depends on this. Runs both code generators.
 lazy val api = (project in file("api"))
     .settings(
       name := "registry-api",
@@ -214,9 +216,9 @@ lazy val api = (project in file("api"))
           .taskValue,
     )
 
-// The reference registry implementation (pure Assemble core + AcsSource/RegistryService/LocalRegistryApi
-// + the http4s server) and the treasury / cross-registry-swap flows. Our own specs + the gated Canton
-// integration tests live in its src/test (which uses the testkit).
+// The reference implementations: the registry (pure Assemble core + AcsSource/RegistryService/
+// LocalRegistryApi + the http4s server/client) and the in-memory ledger (InMemoryLedger). The
+// treasury / cross-registry-swap demo flows live in its src/test.
 lazy val impl = (project in file("impl"))
     .dependsOn(api)
     .settings(
