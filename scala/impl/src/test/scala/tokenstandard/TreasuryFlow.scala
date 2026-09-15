@@ -2,15 +2,17 @@ package tokenstandard
 
 import cats.MonadError
 import cats.syntax.all.*
+import daml.splice.api.token.allocationinstructionv2.AllocationFactory
 import daml.splice.api.token.allocationv2.Allocation
 import daml.splice.api.token.allocationv2.AllocationSpecification
 import daml.splice.api.token.allocationv2.FinalizedAllocation
+import daml.splice.api.token.allocationv2.SettlementFactory
+import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatchResult
 import daml.splice.api.token.allocationv2.SettlementInfo
 import daml.splice.api.token.allocationv2.TransferLeg
 import daml.splice.api.token.holdingv2.Holding
 import daml.splice.api.token.holdingv2.InstrumentId
 import tokenstandard.ledger.LedgerClient
-import tokenstandard.ledger.LedgerClient.SettleResult
 import tokenstandard.registry.RegistryApi
 import tokenstandard.registry.RegistryApi.Error
 
@@ -169,7 +171,7 @@ final class TreasuryFlow[F[_]](reg: RegistryApi[F], ledger: LedgerClient[F])(usi
                   settlement,
                 )
                 treasuryCid1 <- F.fromOption(
-                  depositResult.nextIterationAllocations.headOption.flatten,
+                  nextIterationAllocations(depositResult).headOption.flatten,
                   Error.Unexpected("deposit settle returned no next-iteration treasury allocation"),
                 )
 
@@ -226,7 +228,7 @@ final class TreasuryFlow[F[_]](reg: RegistryApi[F], ledger: LedgerClient[F])(usi
                 _ <- checkBalances(env.hydrozoa, List(xId -> 0, yId -> 0), List(xId -> 0, yId -> 0))
 
                 // the treasury pool is closed
-                remaining <- ledger.activeAllocations(env.hydrozoa)
+                remaining <- ledger.activeAllocations(env.hydrozoa, env.hydrozoa)
                 _ <-
                     if remaining.isEmpty then F.unit
                     else
@@ -260,7 +262,16 @@ final class TreasuryFlow[F[_]](reg: RegistryApi[F], ledger: LedgerClient[F])(usi
                 List(authorizer)
               )
             )
-            cid <- ledger.exerciseAllocationFactory(authorizer, bundle)
+            exercised <- ledger.exercise(
+              authorizer,
+              Nil,
+              new AllocationFactory.ContractId(bundle.factoryCid)
+                  .exerciseAllocationFactory_Allocate(bundle.arg),
+              bundle.disclosures,
+            )
+            cid <- F.fromEither(
+              completedAllocation(exercised.exerciseResult).leftMap(Error.Unexpected(_))
+            )
         yield cid
 
     private def settleBatch(
@@ -268,7 +279,7 @@ final class TreasuryFlow[F[_]](reg: RegistryApi[F], ledger: LedgerClient[F])(usi
         legs: List[TransferLeg],
         allocations: List[FinalizedAllocation],
         settlement: SettlementInfo,
-    ): F[SettleResult] =
+    ): F[SettlementFactory_SettleBatchResult] =
         for
             bundle <- reg.getSettlementFactory(
               TokenStandardHelpers.settlementFactorySettleBatch(
@@ -278,14 +289,20 @@ final class TreasuryFlow[F[_]](reg: RegistryApi[F], ledger: LedgerClient[F])(usi
                 List(executor)
               )
             )
-            res <- ledger.exerciseSettlementFactory(executor, bundle)
-        yield res
+            exercised <- ledger.exercise(
+              executor,
+              Nil,
+              new SettlementFactory.ContractId(bundle.factoryCid)
+                  .exerciseSettlementFactory_SettleBatch(bundle.arg),
+              bundle.disclosures,
+            )
+        yield exercised.exerciseResult
 
     private def inputsAcross(
         owner: PartyId,
         instruments: List[InstrumentId]
     ): F[List[Holding.ContractId]] =
-        instruments.flatTraverse(inst => ledger.listHoldingCids(owner, inst))
+        instruments.flatTraverse(inst => ledger.listHoldingCids(owner, owner, inst))
 
     /** Assert a party's unlocked and locked balances across several instruments (Daml's
       * `checkBalances`). An instrument's expected total is a plain number; `0` asserts empty.
@@ -298,11 +315,13 @@ final class TreasuryFlow[F[_]](reg: RegistryApi[F], ledger: LedgerClient[F])(usi
         for
             _ <- unlocked.traverse_((inst, exp) =>
                 ledger
-                    .unlockedBalance(owner, inst)
+                    .unlockedBalance(owner, owner, inst)
                     .flatMap(assertEq(owner, inst, "unlocked", _, exp))
             )
             _ <- locked.traverse_((inst, exp) =>
-                ledger.lockedBalance(owner, inst).flatMap(assertEq(owner, inst, "locked", _, exp))
+                ledger
+                    .lockedBalance(owner, owner, inst)
+                    .flatMap(assertEq(owner, inst, "locked", _, exp))
             )
         yield ()
 

@@ -2,7 +2,9 @@ package tokenstandard
 
 import cats.MonadError
 import cats.syntax.all.*
+import daml.splice.api.token.allocationinstructionv2.AllocationFactory
 import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.allocationv2.SettlementFactory
 import daml.splice.api.token.holdingv2.InstrumentId
 import tokenstandard.ledger.LedgerClient
 import tokenstandard.registry.RegistryApi
@@ -70,7 +72,16 @@ final class CrossRegistrySwapFlow[F[_]](
                 bundle <- reg.getAllocationFactory(
                   allocationFactoryAllocate(settlement, spec, now, inputs, List(authorizer))
                 )
-                cid <- ledger.exerciseAllocationFactory(authorizer, bundle)
+                exercised <- ledger.exercise(
+                  authorizer,
+                  Nil,
+                  new AllocationFactory.ContractId(bundle.factoryCid)
+                      .exerciseAllocationFactory_Allocate(bundle.arg),
+                  bundle.disclosures,
+                )
+                cid <- F.fromEither(
+                  completedAllocation(exercised.exerciseResult).leftMap(Error.Unexpected(_))
+                )
             yield cid
 
         def settleOn(
@@ -82,12 +93,18 @@ final class CrossRegistrySwapFlow[F[_]](
                 bundle <- reg.getSettlementFactory(
                   settlementFactorySettleBatch(settlement, legs, allocations, List(env.operator))
                 )
-                _ <- ledger.exerciseSettlementFactory(env.operator, bundle)
+                _ <- ledger.exercise(
+                  env.operator,
+                  Nil,
+                  new SettlementFactory.ContractId(bundle.factoryCid)
+                      .exerciseSettlementFactory_SettleBatch(bundle.arg),
+                  bundle.disclosures,
+                )
             yield ()
 
         for
-            aliceInputsX <- ledger.listHoldingCids(env.alice, xId)
-            bobInputsY <- ledger.listHoldingCids(env.bob, yId)
+            aliceInputsX <- ledger.listHoldingCids(env.alice, env.alice, xId)
+            bobInputsY <- ledger.listHoldingCids(env.bob, env.bob, yId)
 
             _ <- checkUnlocked(env.alice, xId, 1000)
             _ <- checkUnlocked(env.bob, yId, 1000)
@@ -166,7 +183,7 @@ final class CrossRegistrySwapFlow[F[_]](
         yield ()
 
     private def checkUnlocked(owner: PartyId, inst: InstrumentId, expected: Int): F[Unit] =
-        ledger.unlockedBalance(owner, inst).flatMap { actual =>
+        ledger.unlockedBalance(owner, owner, inst).flatMap { actual =>
             if actual == BigDecimal(expected) then F.unit
             else
                 F.raiseError[Unit](

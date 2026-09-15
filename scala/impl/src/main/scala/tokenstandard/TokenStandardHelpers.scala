@@ -1,14 +1,18 @@
 package tokenstandard
 
 import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
+import daml.splice.api.token.allocationinstructionv2.AllocationInstructionResult
+import daml.splice.api.token.allocationinstructionv2.allocationinstructionresult_output.AllocationInstructionResult_Completed
 import daml.splice.api.token.allocationv2.Allocation
 import daml.splice.api.token.allocationv2.AllocationSpecification
 import daml.splice.api.token.allocationv2.FinalizedAllocation
 import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
+import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatchResult
 import daml.splice.api.token.allocationv2.SettlementInfo
 import daml.splice.api.token.allocationv2.TransferLeg
 import daml.splice.api.token.allocationv2.TransferLegSide
 import daml.splice.api.token.allocationv2.TransferSide
+import daml.splice.api.token.allocationv2.allocationresult_output.AllocationResult_Settled
 import daml.splice.api.token.holdingv2.Account
 import daml.splice.api.token.holdingv2.Holding
 import daml.splice.api.token.holdingv2.InstrumentId
@@ -21,6 +25,7 @@ import java.math.BigDecimal as JBigDecimal
 import java.time.Instant
 import java.util.Optional
 import scala.jdk.CollectionConverters.*
+import scala.jdk.OptionConverters.*
 
 /** Scala-side constructors for the CIP-0112 codegen types — the port of
   * `Splice.TokenStandard.Utils` plus the treasury flow's `mkLeg`/`mkAlloc` smart constructors.
@@ -141,6 +146,28 @@ object TokenStandardHelpers:
     /** A settled allocation with no rolled-forward iteration (Daml's `nonIteratedAllocation`). */
     def nonIteratedAllocation(allocationCid: Allocation.ContractId): FinalizedAllocation =
         finalizedAllocation(allocationCid, Nil, None)
+
+    // --- choice-result projections ---------------------------------------------
+
+    /** The allocation created by an immediately-completed instruction (TestTokenV2 allocations
+      * complete in one step); `Left` describes a `Pending`/`Failed` output.
+      */
+    def completedAllocation(
+        res: AllocationInstructionResult
+    ): Either[String, Allocation.ContractId] =
+        res.output match
+            case c: AllocationInstructionResult_Completed => Right(c.allocationCid)
+            case other => Left(s"allocation instruction not completed: $other")
+
+    /** Port of the Daml harness's `extractNextIterationAllocationCid`: for each settled allocation
+      * (in input order), its rolled-forward next-iteration allocation, if any.
+      */
+    def nextIterationAllocations(
+        res: SettlementFactory_SettleBatchResult
+    ): List[Option[Allocation.ContractId]] =
+        res.allocationSettleResults.asScala.toList.map(_.output match
+            case s: AllocationResult_Settled => s.nextIterationAllocationCid.toScala
+            case _                           => None)
 
     private def fundingOpt(
         f: Option[Map[String, BigDecimal]]

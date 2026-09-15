@@ -44,9 +44,10 @@ val commonScalacOptions = Seq(
   // Generated code (Daml codegen, OpenAPI DTOs) under src_managed carries unused imports; don't let
   // -Werror reject machine-generated code. Our own sources stay strict.
   "-Wconf:src=.*src_managed.*:s",
-  // RegistryApiStub is a canned test double; its 7 lifecycle-context stubs never run in the flows,
-  // so their (contract-required) params are unused. Silence just that in that one file.
-  "-Wconf:msg=unused explicit parameter&src=.*RegistryApiStub\\.scala:s",
+  // Two implementations take interface-required params they deliberately ignore: RegistryApiStub's
+  // lifecycle-context stubs never run in the flows, and InMemoryLedger has total visibility (its
+  // actAs/readAs/as/disclosures are accepted for signature parity, not enforced). Silence only there.
+  "-Wconf:msg=unused explicit parameter&src=.*(RegistryApiStub|InMemoryLedger)\\.scala:s",
 )
 
 // sbt 2 mis-detects forked ScalaCheck runs and drops all but the first property of a suite; route
