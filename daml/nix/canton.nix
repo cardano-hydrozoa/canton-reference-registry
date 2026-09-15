@@ -1,4 +1,9 @@
-{ stdenv, fetchurl, makeWrapper, jdk21 }:
+{
+  stdenv,
+  fetchurl,
+  makeWrapper,
+  jdk21,
+}:
 
 # Canton open-source runtime: participant / sequencer / mediator nodes + the
 # Canton console. Not in nixpkgs, so we fetch the release tarball and wrap the

@@ -1,26 +1,24 @@
 package treasury.registry.service.http
 
-import java.time.Instant
-import java.util.Base64
-
 import cats.effect.IO
 import cats.effect.testing.scalatest.AsyncIOSpec
-
+import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.holdingv2.Account
 import org.http4s.client.Client
 import org.http4s.implicits.*
-
 import org.scalatest.funsuite.AsyncFunSuite
-
 import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.TokenStandardHelpers.basicAccount
-import treasury.registry.{RegistryApiEvent, Tracer}
 import treasury.registry.RegistryApi.EnrichedFactoryChoice
+import treasury.registry.RegistryApiEvent
+import treasury.registry.Tracer
 import treasury.registry.service.*
-import treasury.registry.testkit.{Cip0112Conformance, ContextView}
+import treasury.registry.testkit.Cip0112Conformance
+import treasury.registry.testkit.ContextView
 
-import daml.splice.api.token.allocationv2.Allocation
-import daml.splice.api.token.holdingv2.Account
+import java.time.Instant
+import java.util.Base64
 
 /** Conformance of the HTTP client [[RegistryBackendHttp]] to the CIP-0112 normative properties,
   * over the two factory endpoints it serves. Reuses [[Cip0112Conformance]]'s check predicates (P1

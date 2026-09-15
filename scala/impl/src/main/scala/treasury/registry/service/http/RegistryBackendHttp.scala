@@ -1,28 +1,30 @@
 package treasury.registry.service.http
 
-import java.util.Base64
-import scala.util.Try
-
 import cats.effect.Concurrent
 import cats.syntax.all.*
-
+import com.daml.ledger.javaapi.data.DisclosedContract
+import com.daml.ledger.javaapi.data.Identifier
 import com.google.protobuf.ByteString
-import io.circe.{Json, parser}
-
-import org.http4s.{Method, Request, Uri}
-import org.http4s.circe.CirceEntityCodec.*
-import org.http4s.client.Client
-
-import treasury.registry.{RegistryApi, RegistryApiEvent, Tracer}
-import treasury.registry.RegistryApi.EnrichedFactoryChoice
-
-import treasury.registry.openapi.allocinstr.models as ai
-import treasury.registry.openapi.alloc.models as al
-
-import com.daml.ledger.javaapi.data.{DisclosedContract, Identifier}
 import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
 import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
-import daml.splice.api.token.metadatav1.{ChoiceContext, ExtraArgs}
+import daml.splice.api.token.metadatav1.ChoiceContext
+import daml.splice.api.token.metadatav1.ExtraArgs
+import io.circe.Json
+import io.circe.parser
+import org.http4s.Method
+import org.http4s.Request
+import org.http4s.Uri
+import org.http4s.circe.CirceEntityCodec.*
+import org.http4s.client.Client
+import treasury.registry.RegistryApi
+import treasury.registry.RegistryApi.EnrichedFactoryChoice
+import treasury.registry.RegistryApiEvent
+import treasury.registry.Tracer
+import treasury.registry.openapi.alloc.models as al
+import treasury.registry.openapi.allocinstr.models as ai
+
+import java.util.Base64
+import scala.util.Try
 
 /** HTTP client to a remote CIP-0112 registry — the consumer counterpart of [[RegistryRoutes]] and
   * an alternative [[RegistryApi]] implementation (a wallet/app calls this to obtain the context +

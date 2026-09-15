@@ -1,23 +1,25 @@
 package treasury.registry.testkit
 
-import java.time.Instant
-
 import cats.Monad
 import cats.instances.either.*
-
-import org.scalacheck.{Gen, Prop, Properties}
-
+import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
+import daml.splice.api.token.allocationinstructionv2.AllocationInstruction
+import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
+import daml.splice.api.token.holdingv2.Account
+import daml.splice.api.token.holdingv2.Holding
+import daml.splice.api.token.transferinstructionv2.TransferInstruction
+import org.scalacheck.Gen
+import org.scalacheck.Prop
+import org.scalacheck.Properties
 import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.TokenStandardHelpers.basicAccount
-import treasury.registry.{RegistryApi, Tracer}
+import treasury.registry.RegistryApi
+import treasury.registry.Tracer
 import treasury.registry.service.*
 
-import daml.splice.api.token.allocationinstructionv2.{AllocationFactory_Allocate, AllocationInstruction}
-import daml.splice.api.token.holdingv2.Account
-import daml.splice.api.token.allocationv2.{Allocation, SettlementFactory_SettleBatch}
-import daml.splice.api.token.holdingv2.Holding
-import daml.splice.api.token.transferinstructionv2.TransferInstruction
+import java.time.Instant
 
 /** Runs the [[Cip0112Conformance]] suite against the reference [[LocalRegistryApi]] over an
   * in-memory [[MockAcsSource]] — the pure P1–P4 tier (no ledger), across the full V2 endpoint

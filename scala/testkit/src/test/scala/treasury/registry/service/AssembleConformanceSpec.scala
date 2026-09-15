@@ -1,12 +1,11 @@
 package treasury.registry.service
 
-import scala.jdk.OptionConverters.*
-
-import org.scalatest.funsuite.AnyFunSuite
-
-import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
-
 import daml.splice.api.token.holdingv2.Account
+import org.scalatest.funsuite.AnyFunSuite
+import treasury.registry.service.CtxValue.CtxContractId
+import treasury.registry.service.CtxValue.CtxList
+
+import scala.jdk.OptionConverters.*
 
 /** Tier-1 conformance: structural properties of the pure [[Assemble]] core, with the spec derived
   * by reading Splice `TestTokenV2_RegistryV2.getAccountMapAndTokenRulesC` (and the two factory

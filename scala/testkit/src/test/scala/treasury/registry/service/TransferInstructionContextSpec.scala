@@ -1,17 +1,15 @@
 package treasury.registry.service
 
+import daml.splice.api.token.holdingv2.Account
+import daml.splice.api.token.transferinstructionv2.TransferInstruction
+import org.scalatest.funsuite.AnyFunSuite
+import treasury.TokenStandardHelpers
+import treasury.registry.RegistryApi
+import treasury.registry.RegistryApi.OpenApiChoiceContext
+import treasury.registry.Tracer
+
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
-
-import org.scalatest.funsuite.AnyFunSuite
-
-import treasury.TokenStandardHelpers
-import treasury.registry.{RegistryApi, Tracer}
-
-import daml.splice.api.token.holdingv2.Account
-import treasury.registry.RegistryApi.OpenApiChoiceContext
-
-import daml.splice.api.token.transferinstructionv2.TransferInstruction
 
 /** Cluster-D wiring test: the transfer-instruction lifecycle contexts (accept / reject / withdraw —
   * one shared recipe) driven through the reference [[LocalRegistryApi]] over an in-memory

@@ -1,16 +1,14 @@
 package treasury.registry.service
 
+import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.holdingv2.Account
+import org.scalatest.funsuite.AnyFunSuite
+import treasury.TokenStandardHelpers
+import treasury.registry.RegistryApiEvent
+import treasury.registry.Tracer
+
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
-
-import org.scalatest.funsuite.AnyFunSuite
-
-import treasury.TokenStandardHelpers
-import treasury.registry.{RegistryApiEvent, Tracer}
-
-import daml.splice.api.token.holdingv2.Account
-
-import daml.splice.api.token.allocationv2.Allocation
 
 /** Cluster B wiring test: [[RegistryService.allocationContext]] via [[LocalRegistryApi]] over an
   * in-memory [[MockAcsSource]] carrying one allocation. Withdraw assembles for the authorizer with

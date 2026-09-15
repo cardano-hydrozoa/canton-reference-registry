@@ -2,7 +2,6 @@ package treasury.registry.service
 
 import cats.Applicative
 import cats.syntax.all.*
-
 import daml.splice.api.token.holdingv2.Account
 
 /** In-memory [[AcsSource]] for service tests, generic over any `Applicative[F]` (never errors — the

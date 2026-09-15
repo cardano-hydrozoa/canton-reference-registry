@@ -1,16 +1,15 @@
 package treasury.registry.service
 
+import daml.splice.api.token.allocationinstructionv2.AllocationInstruction
+import daml.splice.api.token.holdingv2.Account
+import org.scalatest.funsuite.AnyFunSuite
+import treasury.TokenStandardHelpers
+import treasury.registry.RegistryApi
+import treasury.registry.RegistryApiEvent
+import treasury.registry.Tracer
+
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
-
-import org.scalatest.funsuite.AnyFunSuite
-
-import treasury.TokenStandardHelpers
-import treasury.registry.{RegistryApi, RegistryApiEvent, Tracer}
-
-import daml.splice.api.token.holdingv2.Account
-
-import daml.splice.api.token.allocationinstructionv2.AllocationInstruction
 
 /** Cluster C wiring test: both allocation-instruction lifecycle contexts (withdraw + accept)
   * resolve through [[RegistryService.allocationInstructionContext]] to a context assembled for the

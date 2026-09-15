@@ -1,6 +1,7 @@
 package treasury.registry.testkit
 
-import org.scalacheck.{Prop, Properties}
+import org.scalacheck.Prop
+import org.scalacheck.Properties
 
 /** Smoke check that the ported [[test.ScalaCheckFrameworkFixed]] runs *every* property of a suite
   * (sbt 2's native ScalaCheck integration drops all but the last). Two properties → both must

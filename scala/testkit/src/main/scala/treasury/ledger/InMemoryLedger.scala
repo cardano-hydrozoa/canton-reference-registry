@@ -1,17 +1,19 @@
 package treasury.ledger
 
-import scala.jdk.CollectionConverters.*
-import scala.jdk.OptionConverters.*
-
 import cats.data.StateT
-
+import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
+import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
+import daml.splice.api.token.allocationv2.TransferSide
+import daml.splice.api.token.holdingv2.Holding
+import daml.splice.api.token.holdingv2.InstrumentId
 import treasury.PartyId
 import treasury.ledger.LedgerClient.SettleResult
-import treasury.registry.RegistryApi.{EnrichedFactoryChoice, Error}
+import treasury.registry.RegistryApi.EnrichedFactoryChoice
+import treasury.registry.RegistryApi.Error
 
-import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
-import daml.splice.api.token.allocationv2.{Allocation, SettlementFactory_SettleBatch, TransferSide}
-import daml.splice.api.token.holdingv2.{Holding, InstrumentId}
+import scala.jdk.CollectionConverters.*
+import scala.jdk.OptionConverters.*
 
 /** A party's balance of one instrument. */
 final case class Bal(unlocked: BigDecimal, locked: BigDecimal)

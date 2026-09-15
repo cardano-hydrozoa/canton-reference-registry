@@ -1,11 +1,14 @@
 package treasury.registry
 
 import com.daml.ledger.javaapi.data.DisclosedContract
-
-import daml.splice.api.token.allocationinstructionv2.{AllocationFactory_Allocate, AllocationInstruction}
-import daml.splice.api.token.allocationv2.{Allocation, SettlementFactory_SettleBatch}
-import daml.splice.api.token.metadatav1.{ChoiceContext, Metadata}
-import daml.splice.api.token.transferinstructionv2.{TransferFactory_Transfer, TransferInstruction}
+import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
+import daml.splice.api.token.allocationinstructionv2.AllocationInstruction
+import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
+import daml.splice.api.token.metadatav1.ChoiceContext
+import daml.splice.api.token.metadatav1.Metadata
+import daml.splice.api.token.transferinstructionv2.TransferFactory_Transfer
+import daml.splice.api.token.transferinstructionv2.TransferInstruction
 
 /** Off-ledger registry API of a CIP-0112 token-standard registry — the Scala port of Daml's
   * `Splice.Testing.TokenStandard.RegistryApiV2.RegistryApi` typeclass, listing the complete set of

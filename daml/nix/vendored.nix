@@ -19,7 +19,10 @@ let
     repo = "splice";
     rev = "0.6.11"; # commit fd93f86ac
     # Sparse: only the two trees the build touches. Keeps the fetch small and the hash stable.
-    sparseCheckout = [ "token-standard" "daml" ];
+    sparseCheckout = [
+      "token-standard"
+      "daml"
+    ];
     hash = "sha256-UyL5qxhsx6j8GOECwsNZDhakyIUNCHgDhHy21OuR3EQ=";
   };
 

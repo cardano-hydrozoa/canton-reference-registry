@@ -3,7 +3,9 @@ package org.scalacheck
 import org.scalacheck.Test.Parameters
 import org.scalacheck.rng.Seed
 import org.scalacheck.util.ConsoleReporter
-import scala.util.{Failure, Success}
+
+import scala.util.Failure
+import scala.util.Success
 
 /** This fixes obtuse Scalacheck 80 character line wraps.
   * @param name

@@ -1,10 +1,8 @@
 package treasury.it
 
-import io.grpc.netty.NettyChannelBuilder
-
 import com.daml.ledger.api.v2.admin.PartyManagementServiceGrpc
 import com.daml.ledger.api.v2.admin.PartyManagementServiceOuterClass.AllocatePartyRequest
-
+import io.grpc.netty.NettyChannelBuilder
 import treasury.PartyId
 
 /** Party allocation over the Ledger API v2 admin `PartyManagementService`. The rxjava

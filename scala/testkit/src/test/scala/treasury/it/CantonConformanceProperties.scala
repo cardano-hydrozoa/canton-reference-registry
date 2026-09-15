@@ -1,20 +1,28 @@
 package treasury.it
 
-import cats.effect.{Clock, IO, Resource}
+import cats.effect.Clock
+import cats.effect.IO
+import cats.effect.Resource
 import cats.effect.unsafe.implicits.global
 import cats.syntax.all.*
-
-import org.scalacheck.{Prop, PropertyM, Test, YetAnotherProperties}
-
+import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
+import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
+import daml.splice.api.token.allocationv2.SettlementInfo
+import daml.splice.api.token.allocationv2.TransferLeg
+import daml.splice.api.token.holdingv2.Holding
+import org.scalacheck.Prop
+import org.scalacheck.PropertyM
+import org.scalacheck.Test
+import org.scalacheck.YetAnotherProperties
 import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.TokenStandardHelpers.basicAccount
-import treasury.registry.{RegistryApi, RegistryApiEvent, Tracer}
-import treasury.registry.service.{LocalRegistryApi, RegistryService}
-
-import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
-import daml.splice.api.token.allocationv2.{Allocation, SettlementFactory_SettleBatch, SettlementInfo, TransferLeg}
-import daml.splice.api.token.holdingv2.Holding
+import treasury.registry.RegistryApi
+import treasury.registry.RegistryApiEvent
+import treasury.registry.Tracer
+import treasury.registry.service.LocalRegistryApi
+import treasury.registry.service.RegistryService
 
 /** CIP-0112 live-ledger acceptance (P5): the reference [[LocalRegistryApi]] over a real Canton ACS
   * assembles the factory choice contexts + disclosures, and the ledger must accept the exercises.

@@ -1,14 +1,7 @@
 package treasury.it
 
-import scala.jdk.CollectionConverters.*
-
 import cats.effect.IO
-
 import com.daml.ledger.javaapi.data.ContractFilter
-
-import treasury.PartyId
-import treasury.registry.service.*
-
 import daml.splice.api.token.allocationinstructionv2.AllocationInstruction
 import daml.splice.api.token.allocationv2.Allocation
 import daml.splice.api.token.holdingv2.Account
@@ -16,6 +9,10 @@ import daml.splice.api.token.transferinstructionv2.TransferInstruction
 import daml.splice.testing.tokens.testtokenv2.TokenRules
 import daml.splice.testing.tokens.testtokenv2.accountconfig.AccountConfig
 import daml.splice.testing.tokens.testtokenv2.holding.Token
+import treasury.PartyId
+import treasury.registry.service.*
+
+import scala.jdk.CollectionConverters.*
 
 /** Canton-backed [[AcsSource]]: reads the registry admin's ACS over the Ledger API (with
   * created-event blobs) and maps the codegen contracts to the service's domain types. Runs in `IO`

@@ -1,26 +1,20 @@
 package treasury.registry.service.http
 
-import scala.jdk.OptionConverters.*
-
 import cats.effect.IO
 import cats.effect.testing.scalatest.AsyncIOSpec
-
+import daml.splice.api.token.holdingv2.Account
 import io.circe.Json
 import io.circe.syntax.*
-
 import org.http4s.*
 import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.client.Client
 import org.http4s.implicits.*
-
 import org.scalatest.funsuite.AsyncFunSuite
-
-import treasury.registry.service.*
-
-import daml.splice.api.token.holdingv2.Account
-
 import treasury.registry.openapi.alloc.models as al
 import treasury.registry.openapi.allocinstr.models as ai
+import treasury.registry.service.*
+
+import scala.jdk.OptionConverters.*
 
 /** In-process end-to-end test of the HTTP layer: a real http4s request routed through
   * [[RegistryRoutes]] over a [[MockAcsSource]]-backed [[RegistryService]], driven by an `http4s`

@@ -2,7 +2,6 @@ package treasury.registry.service
 
 import cats.MonadThrow
 import cats.syntax.all.*
-
 import daml.splice.api.token.holdingv2.Account
 
 /** The F-level registry: fetch contracts via [[AcsSource]], assemble the choice context via

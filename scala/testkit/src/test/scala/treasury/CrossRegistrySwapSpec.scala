@@ -1,14 +1,15 @@
 package treasury
 
-import java.time.Instant
-
-import org.scalatest.funsuite.AnyFunSuite
-
-import treasury.PartyId
-import treasury.ledger.{InMemoryLedger, LedgerM, LedgerState}
-import treasury.registry.{RegistryApiStub, Tracer}
-
 import daml.splice.api.token.holdingv2.InstrumentId
+import org.scalatest.funsuite.AnyFunSuite
+import treasury.PartyId
+import treasury.ledger.InMemoryLedger
+import treasury.ledger.LedgerM
+import treasury.ledger.LedgerState
+import treasury.registry.RegistryApiStub
+import treasury.registry.Tracer
+
+import java.time.Instant
 
 /** Scala port of `Splice.Tests.TestHydrozoaCrossRegistrySwap`: an atomic cross-registry swap run
   * against the pure stub registries + in-memory ledger. Two registries (distinct admins) each back

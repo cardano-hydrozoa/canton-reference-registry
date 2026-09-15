@@ -2,15 +2,12 @@ package treasury.registry.service.http
 
 import cats.effect.Concurrent
 import cats.syntax.all.*
-
 import org.http4s.HttpRoutes
 import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.dsl.Http4sDsl
-
-import treasury.registry.service.*
-
-import treasury.registry.openapi.allocinstr.models as ai
 import treasury.registry.openapi.alloc.models as al
+import treasury.registry.openapi.allocinstr.models as ai
+import treasury.registry.service.*
 
 /** http4s routes serving the two CIP-0112 registry factory endpoints the treasury / cross-registry
   * swap flow exercises, backed by a [[RegistryService]]:

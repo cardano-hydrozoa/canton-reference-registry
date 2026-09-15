@@ -1,16 +1,16 @@
 package treasury.registry.service.http
 
-import scala.jdk.OptionConverters.*
-
 import cats.syntax.all.*
-
-import io.circe.{Decoder, DecodingFailure, Json}
-import io.circe.syntax.*
-
-import treasury.registry.service.*
-import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
-
 import daml.splice.api.token.holdingv2.Account
+import io.circe.Decoder
+import io.circe.DecodingFailure
+import io.circe.Json
+import io.circe.syntax.*
+import treasury.registry.service.*
+import treasury.registry.service.CtxValue.CtxContractId
+import treasury.registry.service.CtxValue.CtxList
+
+import scala.jdk.OptionConverters.*
 
 /** The Daml-JSON-encoding-sensitive boundary of the registry service, isolated here so it can be
   * unit-tested on its own and swapped/verified against the canonical Daml Java-codegen encoder when

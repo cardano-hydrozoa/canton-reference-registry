@@ -1,22 +1,31 @@
 package treasury.registry.service
 
-import java.util.Base64
-import scala.jdk.CollectionConverters.*
-
 import cats.MonadThrow
 import cats.syntax.all.*
-
-import com.daml.ledger.javaapi.data.{DisclosedContract, Identifier}
+import com.daml.ledger.javaapi.data.DisclosedContract
+import com.daml.ledger.javaapi.data.Identifier
 import com.google.protobuf.ByteString
+import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
+import daml.splice.api.token.allocationinstructionv2.AllocationInstruction
+import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
+import daml.splice.api.token.metadatav1.AnyContract
+import daml.splice.api.token.metadatav1.AnyValue
+import daml.splice.api.token.metadatav1.ChoiceContext
+import daml.splice.api.token.metadatav1.ExtraArgs
+import daml.splice.api.token.metadatav1.Metadata
+import daml.splice.api.token.metadatav1.anyvalue.AV_ContractId
+import daml.splice.api.token.metadatav1.anyvalue.AV_List
+import daml.splice.api.token.transferinstructionv2.TransferFactory_Transfer
+import daml.splice.api.token.transferinstructionv2.TransferInstruction
+import treasury.registry.RegistryApi
+import treasury.registry.RegistryApi.EnrichedFactoryChoice
+import treasury.registry.RegistryApi.OpenApiChoiceContext
+import treasury.registry.RegistryApiEvent
+import treasury.registry.Tracer
 
-import treasury.registry.{RegistryApi, RegistryApiEvent, Tracer}
-import treasury.registry.RegistryApi.{EnrichedFactoryChoice, OpenApiChoiceContext}
-
-import daml.splice.api.token.allocationinstructionv2.{AllocationFactory_Allocate, AllocationInstruction}
-import daml.splice.api.token.allocationv2.{Allocation, SettlementFactory_SettleBatch}
-import daml.splice.api.token.metadatav1.{AnyContract, AnyValue, ChoiceContext, ExtraArgs, Metadata}
-import daml.splice.api.token.metadatav1.anyvalue.{AV_ContractId, AV_List}
-import daml.splice.api.token.transferinstructionv2.{TransferFactory_Transfer, TransferInstruction}
+import java.util.Base64
+import scala.jdk.CollectionConverters.*
 
 /** The reference [[RegistryApi]] implementation: the CIP-0112 registry surface over a
   * [[RegistryService]]. It reads the domain params off the codegen choice argument, runs the pure

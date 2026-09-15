@@ -1,12 +1,11 @@
 package treasury.registry.service
 
-import scala.jdk.OptionConverters.*
-
-import org.scalatest.funsuite.AnyFunSuite
-
-import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
-
 import daml.splice.api.token.holdingv2.Account
+import org.scalatest.funsuite.AnyFunSuite
+import treasury.registry.service.CtxValue.CtxContractId
+import treasury.registry.service.CtxValue.CtxList
+
+import scala.jdk.OptionConverters.*
 
 /** Wiring test for [[RegistryService]] over the in-memory [[MockAcsSource]]: the F-level glue
   * fetches the ACS, delegates to the (separately conformance-tested) [[Assemble]] core, resolves

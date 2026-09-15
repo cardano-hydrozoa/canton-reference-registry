@@ -1,16 +1,14 @@
 package treasury
 
-import java.time.Instant
-
 import cats.MonadError
 import cats.syntax.all.*
-
+import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.holdingv2.InstrumentId
 import treasury.ledger.LedgerClient
 import treasury.registry.RegistryApi
 import treasury.registry.RegistryApi.Error
 
-import daml.splice.api.token.allocationv2.Allocation
-import daml.splice.api.token.holdingv2.InstrumentId
+import java.time.Instant
 
 /** Parties for a cross-registry swap demo. `registryX` issues X, `registryY` issues Y (distinct
   * admins = distinct registries); `operator` settles.

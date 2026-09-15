@@ -1,18 +1,18 @@
 package treasury.registry.service
 
-import java.math.BigDecimal as JBigDecimal
-import java.time.Instant
-import scala.jdk.CollectionConverters.*
-
+import daml.splice.api.token.holdingv2.Holding
+import daml.splice.api.token.transferinstructionv2.Transfer
+import daml.splice.api.token.transferinstructionv2.TransferFactory_Transfer
 import org.scalatest.funsuite.AnyFunSuite
-
 import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.TokenStandardHelpers.basicAccount
-import treasury.registry.{RegistryApiEvent, Tracer}
+import treasury.registry.RegistryApiEvent
+import treasury.registry.Tracer
 
-import daml.splice.api.token.holdingv2.Holding
-import daml.splice.api.token.transferinstructionv2.{Transfer, TransferFactory_Transfer}
+import java.math.BigDecimal as JBigDecimal
+import java.time.Instant
+import scala.jdk.CollectionConverters.*
 
 /** Wiring test for [[LocalRegistryApi.getTransferFactory]] over the in-memory [[MockAcsSource]]
   * (mirrors [[Cip0112ConformanceMockTest]]'s `Either[Throwable, *]` setup): the sender + receiver

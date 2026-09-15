@@ -1,14 +1,15 @@
 package treasury
 
-import java.time.Instant
-
-import org.scalatest.funsuite.AnyFunSuite
-
-import treasury.PartyId
-import treasury.ledger.{InMemoryLedger, LedgerM, LedgerState}
-import treasury.registry.{RegistryApiStub, Tracer}
-
 import daml.splice.api.token.holdingv2.InstrumentId
+import org.scalatest.funsuite.AnyFunSuite
+import treasury.PartyId
+import treasury.ledger.InMemoryLedger
+import treasury.ledger.LedgerM
+import treasury.ledger.LedgerState
+import treasury.registry.RegistryApiStub
+import treasury.registry.Tracer
+
+import java.time.Instant
 
 /** Phase 1 port of `Splice.Tests.TestHydrozoaTreasury.test`: the treasury allocation workflow run
   * against the pure stub registry + in-memory ledger, with no Canton and no effect runtime — the

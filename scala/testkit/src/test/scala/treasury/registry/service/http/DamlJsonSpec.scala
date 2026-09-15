@@ -1,16 +1,14 @@
 package treasury.registry.service.http
 
-import scala.jdk.OptionConverters.*
-
+import daml.splice.api.token.holdingv2.Account
 import io.circe.Json
 import io.circe.syntax.*
-
 import org.scalatest.funsuite.AnyFunSuite
-
 import treasury.registry.service.*
-import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
+import treasury.registry.service.CtxValue.CtxContractId
+import treasury.registry.service.CtxValue.CtxList
 
-import daml.splice.api.token.holdingv2.Account
+import scala.jdk.OptionConverters.*
 
 /** Unit tests for the Daml-JSON boundary, kept separate from the HTTP plumbing so the
   * encoding-sensitive logic is pinned on its own. The exact AnyValue/ChoiceContext shapes asserted

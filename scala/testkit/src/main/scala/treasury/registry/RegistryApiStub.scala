@@ -2,11 +2,9 @@ package treasury.registry
 
 import cats.Applicative
 import cats.syntax.all.*
-
-import treasury.registry.RegistryApi.EnrichedFactoryChoice
-
 import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
 import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
+import treasury.registry.RegistryApi.EnrichedFactoryChoice
 
 /** Pure stub registry (Phase 1): echoes each request into a factory-choice bundle with an opaque
   * factory cid and no disclosures. It carries no ledger knowledge — the in-memory

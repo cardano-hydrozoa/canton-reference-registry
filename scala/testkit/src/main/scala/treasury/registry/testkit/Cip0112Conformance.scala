@@ -1,14 +1,15 @@
 package treasury.registry.testkit
 
-import scala.jdk.CollectionConverters.*
-
 import cats.Monad
 import cats.syntax.all.*
-
 import com.daml.ledger.javaapi.data.DisclosedContract
-
-import org.scalacheck.{Gen, Prop, Properties, PropertyM}
+import org.scalacheck.Gen
+import org.scalacheck.Prop
+import org.scalacheck.Properties
+import org.scalacheck.PropertyM
 import org.scalacheck.util.Pretty
+
+import scala.jdk.CollectionConverters.*
 
 /** Optional (RFC-2119 SHOULD/MAY) conformance properties, flag-gated with sensible defaults. The
   * MUST properties (P1 complete disclosures, P2 factoryId present) always run.

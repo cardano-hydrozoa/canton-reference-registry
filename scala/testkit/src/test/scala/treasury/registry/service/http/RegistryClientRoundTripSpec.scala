@@ -1,25 +1,22 @@
 package treasury.registry.service.http
 
-import java.time.Instant
-import java.util.Base64
-import scala.jdk.CollectionConverters.*
-
 import cats.effect.IO
 import cats.effect.testing.scalatest.AsyncIOSpec
-
+import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.holdingv2.Account
 import org.http4s.client.Client
 import org.http4s.implicits.*
-
 import org.scalatest.funsuite.AsyncFunSuite
-
 import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.TokenStandardHelpers.basicAccount
-import treasury.registry.{RegistryApiEvent, Tracer}
+import treasury.registry.RegistryApiEvent
+import treasury.registry.Tracer
 import treasury.registry.service.*
 
-import daml.splice.api.token.allocationv2.Allocation
-import daml.splice.api.token.holdingv2.Account
+import java.time.Instant
+import java.util.Base64
+import scala.jdk.CollectionConverters.*
 
 /** End-to-end round-trip of the HTTP registry pair with no socket: [[RegistryBackendHttp]] (client)
   * → an `http4s` `Client.fromHttpApp` over [[RegistryRoutes]] (server) → a [[MockAcsSource]]-backed

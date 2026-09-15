@@ -1,13 +1,14 @@
 package treasury.it
 
-import java.nio.file.{Files, Path, Paths}
-import java.time.Duration
-
-import scala.jdk.CollectionConverters.*
-
 import com.dimafeng.testcontainers.GenericContainer
 import org.testcontainers.containers.wait.strategy.Wait
 import org.testcontainers.utility.MountableFile
+
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.time.Duration
+import scala.jdk.CollectionConverters.*
 
 /** A single-node Canton (cn-quickstart's Splice image) for integration tests: boots the daemon with
   * our in-memory topology (`app.conf`) and bootstrap (`bootstrap.sc`), uploads the vendored

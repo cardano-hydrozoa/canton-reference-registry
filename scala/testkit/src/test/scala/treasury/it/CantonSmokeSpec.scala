@@ -1,17 +1,15 @@
 package treasury.it
 
-import scala.jdk.CollectionConverters.*
-
-import cats.effect.{IO, Resource}
+import cats.effect.IO
+import cats.effect.Resource
 import cats.effect.testing.scalatest.AsyncIOSpec
-
 import com.daml.ledger.javaapi.data.ContractFilter
 import com.daml.ledger.rxjava.DamlLedgerClient
 import com.dimafeng.testcontainers.GenericContainer
-
+import daml.splice.testing.tokens.testtokenv2.TokenRules
 import org.scalatest.funsuite.AsyncFunSuite
 
-import daml.splice.testing.tokens.testtokenv2.TokenRules
+import scala.jdk.CollectionConverters.*
 
 /** Phase 2 slice 1: prove the hard part — the cn-quickstart Canton image boots in Docker, uploads
   * our DARs, and is reachable over the gRPC Ledger API via the Java-bindings `DamlLedgerClient`.

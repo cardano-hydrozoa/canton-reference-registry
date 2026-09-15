@@ -1,33 +1,48 @@
 package treasury.it
 
-import java.util.{Base64, Optional, UUID}
-import scala.jdk.CollectionConverters.*
-import scala.jdk.OptionConverters.*
-
 import cats.data.EitherT
 import cats.effect.IO
-
-import com.daml.ledger.javaapi.data.{ActiveContract, CommandsSubmission, ContractFilter, CreatedEvent, DisclosedContract, Identifier}
+import com.daml.ledger.javaapi.data.ActiveContract
+import com.daml.ledger.javaapi.data.CommandsSubmission
+import com.daml.ledger.javaapi.data.ContractFilter
+import com.daml.ledger.javaapi.data.CreatedEvent
+import com.daml.ledger.javaapi.data.DisclosedContract
+import com.daml.ledger.javaapi.data.Identifier
 import com.daml.ledger.javaapi.data.codegen.HasCommands
 import com.daml.ledger.rxjava.DamlLedgerClient
-import io.reactivex.Single
-
 import com.google.protobuf.ByteString
-
+import daml.splice.api.token.allocationinstructionv2.AllocationFactory
+import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
+import daml.splice.api.token.allocationv2.Allocation
+import daml.splice.api.token.allocationv2.SettlementFactory
+import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
+import daml.splice.api.token.holdingv2.Account as DamlAccount
+import daml.splice.api.token.holdingv2.Holding
+import daml.splice.api.token.holdingv2.InstrumentId
+import daml.splice.api.token.metadatav1.AnyContract
+import daml.splice.api.token.metadatav1.AnyValue
+import daml.splice.api.token.metadatav1.ChoiceContext
+import daml.splice.api.token.metadatav1.ExtraArgs
+import daml.splice.api.token.metadatav1.anyvalue.AV_ContractId
+import daml.splice.api.token.metadatav1.anyvalue.AV_List
+import daml.splice.api.token.transferinstructionv2.TransferInstruction
+import daml.splice.api.token.transferinstructionv2.TransferInstruction_Accept
+import daml.splice.testing.tokens.testtokenv2.TokenRules
+import daml.splice.testing.tokens.testtokenv2.TokenRules_OfferMint
+import daml.splice.testing.tokens.testtokenv2.accountconfig.AccountConfig
+import daml.splice.testing.tokens.testtokenv2.accountconfig.PartyConfig
+import daml.splice.testing.tokens.testtokenv2.transfer.TokenTransferOffer
+import io.reactivex.Single
 import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.registry.RegistryApi.Error
 import treasury.registry.service.ContextKeys
 
-import daml.splice.api.token.allocationinstructionv2.{AllocationFactory, AllocationFactory_Allocate}
-import daml.splice.api.token.allocationv2.{Allocation, SettlementFactory, SettlementFactory_SettleBatch}
-import daml.splice.api.token.holdingv2.{Account as DamlAccount, Holding, InstrumentId}
-import daml.splice.api.token.metadatav1.{AnyContract, AnyValue, ChoiceContext, ExtraArgs}
-import daml.splice.api.token.metadatav1.anyvalue.{AV_ContractId, AV_List}
-import daml.splice.api.token.transferinstructionv2.{TransferInstruction, TransferInstruction_Accept}
-import daml.splice.testing.tokens.testtokenv2.{TokenRules, TokenRules_OfferMint}
-import daml.splice.testing.tokens.testtokenv2.accountconfig.{AccountConfig, PartyConfig}
-import daml.splice.testing.tokens.testtokenv2.transfer.TokenTransferOffer
+import java.util.Base64
+import java.util.Optional
+import java.util.UUID
+import scala.jdk.CollectionConverters.*
+import scala.jdk.OptionConverters.*
 
 /** Canton effect: IO with the domain error in an Either base, so the flow's `MonadError[F, Error]`
   * is satisfied (plain IO only has `MonadError[IO, Throwable]`).

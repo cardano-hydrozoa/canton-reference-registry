@@ -1,10 +1,9 @@
 package treasury.registry.service
 
 import cats.syntax.all.*
-
-import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
-
 import daml.splice.api.token.holdingv2.Account
+import treasury.registry.service.CtxValue.CtxContractId
+import treasury.registry.service.CtxValue.CtxList
 
 /** Pure port of `TestTokenV2_RegistryV2`'s off-ledger context assembly —
   * `getAccountMapAndTokenRulesC` and the factory methods that call it. No effects: given the

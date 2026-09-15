@@ -1,18 +1,16 @@
 package treasury.it
 
-import scala.jdk.OptionConverters.*
-
-import cats.effect.{IO, Resource}
+import cats.effect.IO
+import cats.effect.Resource
 import cats.effect.testing.scalatest.AsyncIOSpec
-
 import com.dimafeng.testcontainers.GenericContainer
-
-import org.scalatest.funsuite.AsyncFunSuite
-
-import treasury.registry.service.*
-import treasury.registry.service.CtxValue.{CtxContractId, CtxList}
-
 import daml.splice.api.token.holdingv2.Account
+import org.scalatest.funsuite.AsyncFunSuite
+import treasury.registry.service.*
+import treasury.registry.service.CtxValue.CtxContractId
+import treasury.registry.service.CtxValue.CtxList
+
+import scala.jdk.OptionConverters.*
 
 /** Tier-2 (real-ledger) acceptance for the registry service's fetch+assemble path: boot Canton,
   * create the registry's `TokenRules`, then have [[RegistryService]] over [[AcsSourceCanton]]
