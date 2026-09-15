@@ -7,7 +7,6 @@ import treasury.ledger.InMemoryLedger
 import treasury.ledger.LedgerM
 import treasury.ledger.LedgerState
 import treasury.registry.RegistryApiStub
-import treasury.registry.Tracer
 
 import java.time.Instant
 
@@ -37,7 +36,7 @@ class TreasuryFlowSpec extends AnyFunSuite:
           )
         )
         val flow =
-            new TreasuryFlow[LedgerM](new RegistryApiStub[LedgerM](Tracer.noop), InMemoryLedger)
+            new TreasuryFlow[LedgerM](new RegistryApiStub[LedgerM], InMemoryLedger)
 
         // StateT over Either: run yields Either[Error, (finalState, result)]; a Left is a failed
         // checkpoint.

@@ -7,7 +7,6 @@ import treasury.ledger.InMemoryLedger
 import treasury.ledger.LedgerM
 import treasury.ledger.LedgerState
 import treasury.registry.RegistryApiStub
-import treasury.registry.Tracer
 
 import java.time.Instant
 
@@ -36,8 +35,8 @@ class CrossRegistrySwapSpec extends AnyFunSuite:
             (env.bob, yId, BigDecimal(1000)),
           )
         )
-        val regX = new RegistryApiStub[LedgerM](Tracer.noop)
-        val regY = new RegistryApiStub[LedgerM](Tracer.noop)
+        val regX = new RegistryApiStub[LedgerM]
+        val regY = new RegistryApiStub[LedgerM]
         val flow = new CrossRegistrySwapFlow[LedgerM](regX, regY, InMemoryLedger)
 
         val result = flow.run(env, Instant.EPOCH).run(seed)

@@ -6,9 +6,14 @@ import com.daml.ledger.javaapi.data.DisclosedContract
 import com.daml.ledger.javaapi.data.Identifier
 import com.google.protobuf.ByteString
 import daml.splice.api.token.allocationinstructionv2.AllocationFactory_Allocate
+import daml.splice.api.token.allocationinstructionv2.AllocationInstruction
+import daml.splice.api.token.allocationv2.Allocation
 import daml.splice.api.token.allocationv2.SettlementFactory_SettleBatch
 import daml.splice.api.token.metadatav1.ChoiceContext
 import daml.splice.api.token.metadatav1.ExtraArgs
+import daml.splice.api.token.metadatav1.Metadata
+import daml.splice.api.token.transferinstructionv2.TransferFactory_Transfer
+import daml.splice.api.token.transferinstructionv2.TransferInstruction
 import io.circe.Json
 import io.circe.parser
 import org.http4s.Method
@@ -18,34 +23,56 @@ import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.client.Client
 import treasury.registry.RegistryApi
 import treasury.registry.RegistryApi.EnrichedFactoryChoice
-import treasury.registry.RegistryApiEvent
-import treasury.registry.Tracer
+import treasury.registry.RegistryApi.OpenApiChoiceContext
 import treasury.registry.openapi.alloc.models as al
 import treasury.registry.openapi.allocinstr.models as ai
 
 import java.util.Base64
+import scala.jdk.CollectionConverters.*
 import scala.util.Try
 
 /** HTTP client to a remote CIP-0112 registry — the consumer counterpart of [[RegistryRoutes]] and
   * an alternative [[RegistryApi]] implementation (a wallet/app calls this to obtain the context +
-  * disclosures before exercising a factory choice). Each call encodes the choice argument as
-  * Daml-JSON (`choiceArguments`, via the codegen `jsonEncoder`), POSTs it, and rebuilds an
+  * disclosures before exercising a factory choice). Each factory call encodes the choice argument
+  * as Daml-JSON (`choiceArguments`, via the codegen `jsonEncoder`), POSTs it, and rebuilds an
   * [[EnrichedFactoryChoice]] from the returned factory id + `ChoiceContext` + disclosures — the
-  * inverse of what the local reference [[LocalRegistryApi]] assembles.
+  * inverse of what the local reference [[LocalRegistryApi]] assembles. Each lifecycle handler POSTs
+  * the contract id (in the path) and rebuilds an [[OpenApiChoiceContext]] the same way.
   *
   * `client` is the http4s `Client[F]` abstraction, so the caller injects the concrete backend
-  * (ember in prod, `Client.fromHttpApp(routes)` in tests). Only the two factory endpoints
-  * [[RegistryRoutes]] serves are implemented; the lifecycle contexts inherit the `notImplemented`
-  * default until served.
+  * (ember in prod, `Client.fromHttpApp(routes)` in tests).
+  *
+  * Only two OpenAPI specs are codegen'd (`ai` = allocation-instruction, `al` = allocation), giving
+  * identical DTO shapes in two packages; there is no transfer-instruction DTO package, so the
+  * transfer endpoints reuse `ai`.
   */
 final class RegistryBackendHttp[F[_]: Concurrent](
     client: Client[F],
     baseUri: Uri,
-    protected val tracer: Tracer[F, RegistryApiEvent],
 ) extends RegistryApi[F]:
 
-    protected def notImplemented[A](endpoint: String): F[A] =
-        Concurrent[F].raiseError(RegistryApi.Error.NotImplemented(endpoint))
+    // -- Factories ---------------------------------------------------------------------------------
+
+    override def getTransferFactory(
+        arg: TransferFactory_Transfer
+    ): F[EnrichedFactoryChoice[TransferFactory_Transfer]] =
+        val uri = baseUri / "registry" / "transfer-instruction" / "v2" / "transfer-factory"
+        val body = ai.GetFactoryRequest(damlJson(arg.jsonEncoder().intoString()), None)
+        client
+            .expect[ai.FactoryWithChoiceContext](Request[F](Method.POST, uri).withEntity(body))
+            .flatMap { r =>
+                enriched(
+                  r.factoryId,
+                  r.choiceContext.choiceContextData,
+                  disclosures(r.choiceContext)
+                ) { ctx =>
+                    new TransferFactory_Transfer(
+                      arg.transfer,
+                      arg.actors,
+                      new ExtraArgs(ctx, arg.extraArgs.meta),
+                    )
+                }
+            }
 
     override def getAllocationFactory(
         arg: AllocationFactory_Allocate
@@ -94,7 +121,101 @@ final class RegistryBackendHttp[F[_]: Concurrent](
                 }
             }
 
-    // -- response -> EnrichedFactoryChoice ---------------------------------------------------------
+    // -- Allocation lifecycle choice contexts ------------------------------------------------------
+
+    override def getAllocationWithdrawContext(
+        allocation: Allocation.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        contextCall(
+          baseUri / "registry" / "allocations" / "v2" / allocation.contractId /
+              "choice-contexts" / "withdraw",
+          meta,
+        )
+
+    override def getAllocationCancelContext(
+        allocation: Allocation.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        contextCall(
+          baseUri / "registry" / "allocations" / "v2" / allocation.contractId /
+              "choice-contexts" / "cancel",
+          meta,
+        )
+
+    // -- Allocation-instruction choice contexts ----------------------------------------------------
+
+    override def getAllocationInstructionWithdrawContext(
+        instruction: AllocationInstruction.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        contextCall(
+          baseUri / "registry" / "allocation-instruction" / "v2" / instruction.contractId /
+              "choice-contexts" / "withdraw",
+          meta,
+        )
+
+    override def getAllocationInstructionAcceptContext(
+        instruction: AllocationInstruction.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        contextCall(
+          baseUri / "registry" / "allocation-instruction" / "v2" / instruction.contractId /
+              "choice-contexts" / "accept",
+          meta,
+        )
+
+    // -- Transfer-instruction choice contexts ------------------------------------------------------
+
+    override def getTransferInstructionAcceptContext(
+        instruction: TransferInstruction.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        contextCall(
+          baseUri / "registry" / "transfer-instruction" / "v2" / instruction.contractId /
+              "choice-contexts" / "accept",
+          meta,
+        )
+
+    override def getTransferInstructionRejectContext(
+        instruction: TransferInstruction.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        contextCall(
+          baseUri / "registry" / "transfer-instruction" / "v2" / instruction.contractId /
+              "choice-contexts" / "reject",
+          meta,
+        )
+
+    override def getTransferInstructionWithdrawContext(
+        instruction: TransferInstruction.ContractId,
+        meta: Metadata,
+    ): F[OpenApiChoiceContext] =
+        contextCall(
+          baseUri / "registry" / "transfer-instruction" / "v2" / instruction.contractId /
+              "choice-contexts" / "withdraw",
+          meta,
+        )
+
+    // -- response -> EnrichedFactoryChoice / OpenApiChoiceContext -----------------------------------
+
+    /** POST an empty-ish `GetChoiceContextRequest` (the cid is in the path; the service ignores
+      * `meta`, but we forward it for spec-completeness) and rebuild the [[OpenApiChoiceContext]]:
+      * decode the `choiceContextData` with the codegen decoder and render each disclosed contract.
+      */
+    private def contextCall(uri: Uri, meta: Metadata): F[OpenApiChoiceContext] =
+        val metaMap = meta.values.asScala.toMap
+        val body = ai.GetChoiceContextRequest(Option.when(metaMap.nonEmpty)(metaMap), None)
+        client
+            .expect[ai.ChoiceContext](Request[F](Method.POST, uri).withEntity(body))
+            .flatMap { ctx =>
+                Concurrent[F].fromEither(Try {
+                    OpenApiChoiceContext(
+                      ChoiceContext.fromJson(ctx.choiceContextData.noSpaces),
+                      toDisclosedContracts(disclosures(ctx)),
+                    )
+                }.toEither)
+            }
 
     /** Rebuild an [[EnrichedFactoryChoice]] from the wire response: decode the `choiceContextData`
       * (Daml-JSON of a `MetadataV1.ChoiceContext`) with the codegen decoder, render each disclosed
@@ -107,17 +228,20 @@ final class RegistryBackendHttp[F[_]: Concurrent](
     )(rebuild: ChoiceContext => A): F[EnrichedFactoryChoice[A]] =
         Concurrent[F].fromEither(Try {
             val ctx = ChoiceContext.fromJson(choiceContextData.noSpaces)
-            val ds: List[DisclosedContract] =
-                discs.map { case (templateId, contractId, blob, synchronizerId) =>
-                    new DisclosedContract(
-                      parseIdentifier(templateId),
-                      contractId,
-                      ByteString.copyFrom(Base64.getDecoder.decode(blob)),
-                      synchronizerId,
-                    )
-                }
-            EnrichedFactoryChoice(factoryId, rebuild(ctx), ds)
+            EnrichedFactoryChoice(factoryId, rebuild(ctx), toDisclosedContracts(discs))
         }.toEither)
+
+    private def toDisclosedContracts(
+        discs: List[(String, String, String, String)]
+    ): List[DisclosedContract] =
+        discs.map { case (templateId, contractId, blob, synchronizerId) =>
+            new DisclosedContract(
+              parseIdentifier(templateId),
+              contractId,
+              ByteString.copyFrom(Base64.getDecoder.decode(blob)),
+              synchronizerId,
+            )
+        }
 
     /** Parse the codegen `jsonEncoder().intoString()` output into circe JSON for the request body.
       */

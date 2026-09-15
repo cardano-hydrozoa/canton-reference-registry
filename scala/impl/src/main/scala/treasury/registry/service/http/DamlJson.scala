@@ -44,6 +44,15 @@ object DamlJson:
     def allocationAuthorizer(choiceArguments: Json): Either[DecodingFailure, Account] =
         choiceArguments.hcursor.downField("allocation").downField("authorizer").as[Account]
 
+    /** `TransferFactory_Transfer.transfer.sender` + `.receiver` — the two accounts of the transfer.
+      */
+    def transferAccounts(choiceArguments: Json): Either[DecodingFailure, List[Account]] =
+        val transfer = choiceArguments.hcursor.downField("transfer")
+        for
+            sender <- transfer.get[Account]("sender")
+            receiver <- transfer.get[Account]("receiver")
+        yield List(sender, receiver)
+
     /** The sender + receiver accounts of every `SettlementFactory_SettleBatch.transferLeg` (the
       * assembly dedups them; only the accounts drive the context).
       */

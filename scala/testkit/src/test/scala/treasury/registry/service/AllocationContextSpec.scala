@@ -4,8 +4,6 @@ import daml.splice.api.token.allocationv2.Allocation
 import daml.splice.api.token.holdingv2.Account
 import org.scalatest.funsuite.AnyFunSuite
 import treasury.TokenStandardHelpers
-import treasury.registry.RegistryApiEvent
-import treasury.registry.Tracer
 
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
@@ -56,7 +54,7 @@ class AllocationContextSpec extends AnyFunSuite:
       holdings = Map(Cid("h1") -> aHoldingDisclosure),
     )
     private val impl =
-        LocalRegistryApi[ErrOr](RegistryService(src), Tracer.noop[ErrOr, RegistryApiEvent])
+        LocalRegistryApi[ErrOr](RegistryService(src))
 
     private val expectedKeys = Set(ContextKeys.tokenRules, ContextKeys.accountConfigs)
     private val meta = TokenStandardHelpers.emptyMetadata

@@ -8,8 +8,7 @@ import daml.splice.api.token.holdingv2.Account
   * [[Disclosure]]), the choice-context values ([[CtxValue]]/[[ContextBundle]]), and opaque wire-id
   * wrappers ([[Cid]]/[[Blob]]/[[TemplateId]]/[[SynchronizerId]]). Where an *authoritative* Daml
   * type exists (accounts, transfer legs, instrument ids) we use the codegen type directly (e.g.
-  * `HoldingV2.Account`) — CIP-0112 and the Daml module docs deem those definitions authoritative,
-  * so re-modelling them would only invite drift.
+  * `HoldingV2.Account`) — CIP-0112 and the Daml module docs deem those definitions authoritative.
   */
 
 /** The fields of an on-ledger contract's interface view that the lifecycle choice-context handlers

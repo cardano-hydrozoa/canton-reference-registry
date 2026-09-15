@@ -6,7 +6,6 @@ import org.scalatest.funsuite.AnyFunSuite
 import treasury.TokenStandardHelpers
 import treasury.registry.RegistryApi
 import treasury.registry.RegistryApi.OpenApiChoiceContext
-import treasury.registry.Tracer
 
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
@@ -61,10 +60,7 @@ class TransferInstructionContextSpec extends AnyFunSuite:
       transferInstructions = Map(Cid("ti1") -> TransferDetails(sender, receiver, List(Cid("h1")))),
     )
     private val api: RegistryApi[ErrOr] =
-        LocalRegistryApi[ErrOr](
-          RegistryService(mock),
-          Tracer.noop[ErrOr, treasury.registry.RegistryApiEvent],
-        )
+        LocalRegistryApi[ErrOr](RegistryService(mock))
 
     private val instr = new TransferInstruction.ContractId("ti1")
     private val meta = TokenStandardHelpers.emptyMetadata

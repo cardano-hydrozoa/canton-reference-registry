@@ -10,8 +10,6 @@ import org.scalatest.funsuite.AsyncFunSuite
 import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.TokenStandardHelpers.basicAccount
-import treasury.registry.RegistryApiEvent
-import treasury.registry.Tracer
 import treasury.registry.service.*
 
 import java.time.Instant
@@ -59,7 +57,6 @@ class RegistryClientRoundTripSpec extends AsyncFunSuite, AsyncIOSpec:
         RegistryBackendHttp[IO](
           Client.fromHttpApp(RegistryRoutes[IO](svc).routes.orNotFound),
           uri"http://registry.example",
-          Tracer.noop[IO, RegistryApiEvent],
         )
 
     test("getAllocationFactory round-trips through HTTP: factoryCid + context keys + disclosures"):

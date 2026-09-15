@@ -16,7 +16,6 @@ import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.TokenStandardHelpers.basicAccount
 import treasury.registry.RegistryApi
-import treasury.registry.Tracer
 import treasury.registry.service.*
 
 import java.time.Instant
@@ -74,10 +73,7 @@ object Cip0112ConformanceMockTest extends Properties("cip0112-conformance-mock")
       ),
     )
     private val impl: RegistryApi[EitherT] =
-        LocalRegistryApi[EitherT](
-          RegistryService(mock),
-          Tracer.noop[EitherT, treasury.registry.RegistryApiEvent],
-        )
+        LocalRegistryApi[EitherT](RegistryService(mock))
     private val meta = TokenStandardHelpers.emptyMetadata
 
     // -- endpoint args -----------------------------------------------------------------------------

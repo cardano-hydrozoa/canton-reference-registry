@@ -21,8 +21,6 @@ import daml.splice.api.token.transferinstructionv2.TransferInstruction
 import treasury.registry.RegistryApi
 import treasury.registry.RegistryApi.EnrichedFactoryChoice
 import treasury.registry.RegistryApi.OpenApiChoiceContext
-import treasury.registry.RegistryApiEvent
-import treasury.registry.Tracer
 
 import java.util.Base64
 import scala.jdk.CollectionConverters.*
@@ -32,17 +30,13 @@ import scala.jdk.CollectionConverters.*
   * assembly (via the service), then converts the resulting [[ContextBundle]] back into codegen
   * types — embedding the assembled `ChoiceContext` into the argument's `extraArgs.context` and
   * rendering each [[Disclosure]] as a wire `DisclosedContract` — so the returned
-  * [[EnrichedFactoryChoice]] is ready to exercise. Only the allocation and settlement factories are
-  * implemented; every other endpoint inherits the `notImplemented` default.
+  * [[EnrichedFactoryChoice]] is ready to exercise. Implements the full CIP-0112 surface — both
+  * factories and all seven lifecycle contexts.
   */
 final class LocalRegistryApi[F[_]](
-    service: RegistryService[F],
-    protected val tracer: Tracer[F, RegistryApiEvent],
+    service: RegistryService[F]
 )(using F: MonadThrow[F])
     extends RegistryApi[F]:
-
-    protected def notImplemented[A](endpoint: String): F[A] =
-        F.raiseError(RegistryApi.Error.NotImplemented(endpoint))
 
     override def getAllocationFactory(
         arg: AllocationFactory_Allocate

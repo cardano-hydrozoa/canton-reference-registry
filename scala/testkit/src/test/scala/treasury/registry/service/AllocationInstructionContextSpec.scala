@@ -5,8 +5,6 @@ import daml.splice.api.token.holdingv2.Account
 import org.scalatest.funsuite.AnyFunSuite
 import treasury.TokenStandardHelpers
 import treasury.registry.RegistryApi
-import treasury.registry.RegistryApiEvent
-import treasury.registry.Tracer
 
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
@@ -53,8 +51,7 @@ class AllocationInstructionContextSpec extends AnyFunSuite:
               configs,
               allocationInstructions = Map(Cid("ai1") -> basicAuthorizer),
             )
-          ),
-          Tracer.noop[ErrOr, RegistryApiEvent],
+          )
         )
 
     private val meta = TokenStandardHelpers.emptyMetadata

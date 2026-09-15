@@ -7,8 +7,6 @@ import org.scalatest.funsuite.AnyFunSuite
 import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.TokenStandardHelpers.basicAccount
-import treasury.registry.RegistryApiEvent
-import treasury.registry.Tracer
 
 import java.math.BigDecimal as JBigDecimal
 import java.time.Instant
@@ -58,7 +56,7 @@ class TransferFactorySpec extends AnyFunSuite:
 
     test("getTransferFactory embeds the assembled context and returns the rules cid as factoryCid"):
         val svc = RegistryService(MockAcsSource[ErrOr](rules, Nil))
-        val api = LocalRegistryApi[ErrOr](svc, Tracer.noop[ErrOr, RegistryApiEvent])
+        val api = LocalRegistryApi[ErrOr](svc)
 
         val enriched =
             api.getTransferFactory(arg).fold(err => fail(s"unexpected error: $err"), identity)

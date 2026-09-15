@@ -44,9 +44,9 @@ val commonScalacOptions = Seq(
   // Generated code (Daml codegen, OpenAPI DTOs) under src_managed carries unused imports; don't let
   // -Werror reject machine-generated code. Our own sources stay strict.
   "-Wconf:src=.*src_managed.*:s",
-  // RegistryApi's endpoint methods default to `notImplemented`, so their (contract-required,
-  // overrider-used) params are unused in the default body. Silence just that in that one file.
-  "-Wconf:msg=unused explicit parameter&src=.*RegistryApi\\.scala:s",
+  // RegistryApiStub is a canned test double; its 7 lifecycle-context stubs never run in the flows,
+  // so their (contract-required) params are unused. Silence just that in that one file.
+  "-Wconf:msg=unused explicit parameter&src=.*RegistryApiStub\\.scala:s",
 )
 
 // sbt 2 mis-detects forked ScalaCheck runs and drops all but the first property of a suite; route
@@ -83,7 +83,7 @@ lazy val api = (project in file("api"))
       ivyConfigurations += OpenApiCodegen,
       libraryDependencies ++= Seq(
         "com.daml" % "bindings-java" % bindingsJavaV,
-        "org.typelevel" %% "cats-core" % catsCoreV, // Tracer's Applicative
+        "org.typelevel" %% "cats-core" % catsCoreV, // generated DTO codecs (cats.syntax.functor)
         "io.circe" %% "circe-core" % circeV, // generated DTO codecs
         "org.openapitools" % "openapi-generator-cli" % openapiGenV % OpenApiCodegen,
       ),

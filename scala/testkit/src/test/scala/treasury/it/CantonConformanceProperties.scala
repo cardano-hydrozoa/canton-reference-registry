@@ -19,8 +19,6 @@ import treasury.PartyId
 import treasury.TokenStandardHelpers
 import treasury.TokenStandardHelpers.basicAccount
 import treasury.registry.RegistryApi
-import treasury.registry.RegistryApiEvent
-import treasury.registry.Tracer
 import treasury.registry.service.LocalRegistryApi
 import treasury.registry.service.RegistryService
 
@@ -192,10 +190,7 @@ object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-
             _ <- Resource.eval(ledger.createTokenRules(admin).value.flatMap(IO.fromEither))
             requestedAt <- Resource.eval(Clock[IO].realTimeInstant)
         yield CantonEnv(
-          LocalRegistryApi[IO](
-            RegistryService(AcsSourceCanton(ledger, admin)),
-            Tracer.noop[IO, RegistryApiEvent],
-          ),
+          LocalRegistryApi[IO](RegistryService(AcsSourceCanton(ledger, admin))),
           ledger,
           admin,
           sender,

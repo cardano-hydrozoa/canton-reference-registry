@@ -17,83 +17,68 @@ import daml.splice.api.token.transferinstructionv2.TransferInstruction
   * allocation- / transfer-instruction lifecycle handlers, which return a
   * [[RegistryApi.OpenApiChoiceContext]].
   *
-  * Every method has a default that raises [[RegistryApi.Error.NotImplemented]] via
-  * [[notImplemented]], so an implementation overrides only the endpoints it supports. The reference
-  * registry and the treasury / cross-registry-swap flow use the allocation and settlement
-  * factories; the rest are here so the interface is complete (and so a conformance suite can assert
-  * an implementation's coverage).
-  *
-  * Tagless-final over `F[_]` with a `protected tracer`, as in hydrozoa's `CardanoBackend`. Errors
-  * are folded into `F` (the flow runs in a `MonadError[F, Error]`) — see
-  * [[treasury.ledger.LedgerClient]].
+  * A pure abstract interface, tagless-final over `F[_]`. An implementation provides every endpoint
+  * it serves; a partial implementation stubs the rest in its own code (e.g. raising
+  * [[RegistryApi.Error.NotImplemented]]). Errors are folded into `F` (the flow runs in a
+  * `MonadError[F, Error]`) — see [[treasury.ledger.LedgerClient]].
   */
 trait RegistryApi[F[_]]:
     import RegistryApi.*
-
-    protected def tracer: Tracer[F, RegistryApiEvent]
-
-    /** Raise [[Error.NotImplemented]] into `F` for an unsupported endpoint. Implementations define
-      * it once (e.g. `F.raiseError(Error.NotImplemented(endpoint))`); the defaults below delegate
-      * to it.
-      */
-    protected def notImplemented[A](endpoint: String): F[A]
 
     // -- Factories ---------------------------------------------------------------------------------
 
     def getTransferFactory(
         arg: TransferFactory_Transfer
-    ): F[EnrichedFactoryChoice[TransferFactory_Transfer]] = notImplemented("getTransferFactory")
+    ): F[EnrichedFactoryChoice[TransferFactory_Transfer]]
 
     def getAllocationFactory(
         arg: AllocationFactory_Allocate
-    ): F[EnrichedFactoryChoice[AllocationFactory_Allocate]] = notImplemented("getAllocationFactory")
+    ): F[EnrichedFactoryChoice[AllocationFactory_Allocate]]
 
     def getSettlementFactory(
         arg: SettlementFactory_SettleBatch
-    ): F[EnrichedFactoryChoice[SettlementFactory_SettleBatch]] = notImplemented(
-      "getSettlementFactory"
-    )
+    ): F[EnrichedFactoryChoice[SettlementFactory_SettleBatch]]
 
     // -- Allocation lifecycle choice contexts ------------------------------------------------------
 
     def getAllocationWithdrawContext(
         allocation: Allocation.ContractId,
         meta: Metadata,
-    ): F[OpenApiChoiceContext] = notImplemented("getAllocationWithdrawContext")
+    ): F[OpenApiChoiceContext]
 
     def getAllocationCancelContext(
         allocation: Allocation.ContractId,
         meta: Metadata,
-    ): F[OpenApiChoiceContext] = notImplemented("getAllocationCancelContext")
+    ): F[OpenApiChoiceContext]
 
     // -- Allocation-instruction choice contexts ----------------------------------------------------
 
     def getAllocationInstructionWithdrawContext(
         instruction: AllocationInstruction.ContractId,
         meta: Metadata,
-    ): F[OpenApiChoiceContext] = notImplemented("getAllocationInstructionWithdrawContext")
+    ): F[OpenApiChoiceContext]
 
     def getAllocationInstructionAcceptContext(
         instruction: AllocationInstruction.ContractId,
         meta: Metadata,
-    ): F[OpenApiChoiceContext] = notImplemented("getAllocationInstructionAcceptContext")
+    ): F[OpenApiChoiceContext]
 
     // -- Transfer-instruction choice contexts ------------------------------------------------------
 
     def getTransferInstructionAcceptContext(
         instruction: TransferInstruction.ContractId,
         meta: Metadata,
-    ): F[OpenApiChoiceContext] = notImplemented("getTransferInstructionAcceptContext")
+    ): F[OpenApiChoiceContext]
 
     def getTransferInstructionRejectContext(
         instruction: TransferInstruction.ContractId,
         meta: Metadata,
-    ): F[OpenApiChoiceContext] = notImplemented("getTransferInstructionRejectContext")
+    ): F[OpenApiChoiceContext]
 
     def getTransferInstructionWithdrawContext(
         instruction: TransferInstruction.ContractId,
         meta: Metadata,
-    ): F[OpenApiChoiceContext] = notImplemented("getTransferInstructionWithdrawContext")
+    ): F[OpenApiChoiceContext]
 
 object RegistryApi:
 
