@@ -239,7 +239,9 @@ lazy val impl = (project in file("impl"))
 // they need the doubles + suite (this module) and the reference impl, so keeping them here makes the
 // project graph linear (api <- impl <- testkit) instead of a forbidden impl<->testkit cycle.
 lazy val testkit = (project in file("testkit"))
-    .dependsOn(api, impl)
+    // test->test: the treasury flow demos (TreasuryFlow/CrossRegistrySwapFlow) live in impl's test
+    // scope; the specs that exercise them (with testkit's own doubles) are here.
+    .dependsOn(api, impl % "compile->compile;test->test")
     .settings(
       name := "registry-testkit",
       scalacOptions ++= commonScalacOptions,
