@@ -1,7 +1,7 @@
 import scala.sys.process.Process
 
 ThisBuild / scalaVersion := "3.3.7" // LTS; matches the hydrozoa repo
-ThisBuild / organization := "com.hydrozoa"
+ThisBuild / organization := "tokenstandard"
 
 // scalafix reads SemanticDB emitted by the Scala 3 compiler; -Wunused:all backs
 // OrganizeImports' removeUnused.
@@ -89,8 +89,8 @@ lazy val api = (project in file("api"))
       ),
       resolvers += "jitpack" at "https://jitpack.io",
       registryOpenApiSpecs := Seq(
-        "allocation-instruction-v2.yaml" -> "treasury.registry.openapi.allocinstr",
-        "allocation-v2.yaml" -> "treasury.registry.openapi.alloc",
+        "allocation-instruction-v2.yaml" -> "tokenstandard.registry.openapi.allocinstr",
+        "allocation-v2.yaml" -> "tokenstandard.registry.openapi.alloc",
       ),
       tokenStandardDars := Seq(
         "splice-api-token-metadata-v1-1.0.0.dar",
