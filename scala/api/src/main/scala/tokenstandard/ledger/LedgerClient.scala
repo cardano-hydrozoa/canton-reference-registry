@@ -21,12 +21,14 @@ trait LedgerClient[F[_]]:
     /** Submit a [[Submission]] — one or more commands committed as ONE atomic transaction — and
       * return its decoded result. Atomic composition happens inside the `Submission` applicative
       * (`Submission.exercise(a) *> Submission.exercise(b)`); sequencing `submit` calls in `F` is
-      * the non-atomic composition (separate transactions). `disclosures` are the registry-owned
-      * contracts the submitter must attach (from `EnrichedFactoryChoice.disclosures`); `readAs`
-      * grants read delegation beyond `actAs` for contracts disclosure doesn't cover.
+      * the non-atomic composition (separate transactions). `actAs` are the parties jointly
+      * authorizing the submission (multi-party choices, e.g. an operator co-signing with a registry
+      * admin, need more than one). `disclosures` are the registry-owned contracts the submitter
+      * must attach (from `EnrichedFactoryChoice.disclosures`); `readAs` grants read delegation
+      * beyond `actAs` for contracts disclosure doesn't cover.
       */
     def submit[A](
-        actAs: PartyId,
+        actAs: List[PartyId],
         readAs: List[PartyId],
         submission: Submission[A],
         disclosures: List[DisclosedContract],
@@ -38,7 +40,7 @@ trait LedgerClient[F[_]]:
       * return the decoded choice result.
       */
     def exercise[U](
-        actAs: PartyId,
+        actAs: List[PartyId],
         readAs: List[PartyId],
         update: Update[U],
         disclosures: List[DisclosedContract],

@@ -263,7 +263,7 @@ final class TreasuryFlow[F[_]](reg: RegistryApi[F], ledger: LedgerClient[F])(usi
               )
             )
             exercised <- ledger.exercise(
-              authorizer,
+              List(authorizer),
               Nil,
               new AllocationFactory.ContractId(bundle.factoryCid)
                   .exerciseAllocationFactory_Allocate(bundle.arg),
@@ -290,7 +290,7 @@ final class TreasuryFlow[F[_]](reg: RegistryApi[F], ledger: LedgerClient[F])(usi
               )
             )
             exercised <- ledger.exercise(
-              executor,
+              List(executor),
               Nil,
               new SettlementFactory.ContractId(bundle.factoryCid)
                   .exerciseSettlementFactory_SettleBatch(bundle.arg),

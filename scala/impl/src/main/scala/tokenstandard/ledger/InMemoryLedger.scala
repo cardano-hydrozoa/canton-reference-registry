@@ -93,7 +93,7 @@ type LedgerM[A] = StateT[[X] =>> Either[Error, X], LedgerState, A]
 object InMemoryLedger extends LedgerClient[LedgerM]:
 
     def submit[A](
-        actAs: PartyId,
+        actAs: List[PartyId],
         readAs: List[PartyId],
         submission: Submission[A],
         disclosures: List[DisclosedContract],

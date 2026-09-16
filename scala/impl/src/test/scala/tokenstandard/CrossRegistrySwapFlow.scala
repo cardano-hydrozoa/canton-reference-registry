@@ -73,7 +73,7 @@ final class CrossRegistrySwapFlow[F[_]](
                   allocationFactoryAllocate(settlement, spec, now, inputs, List(authorizer))
                 )
                 exercised <- ledger.exercise(
-                  authorizer,
+                  List(authorizer),
                   Nil,
                   new AllocationFactory.ContractId(bundle.factoryCid)
                       .exerciseAllocationFactory_Allocate(bundle.arg),
@@ -176,7 +176,7 @@ final class CrossRegistrySwapFlow[F[_]](
               List(nonIteratedAllocation(bobSendY), nonIteratedAllocation(aliceRecvY))
             )
             _ <- ledger.submit(
-              env.operator,
+              List(env.operator),
               Nil,
               settleSubmission(bundleX) *> settleSubmission(bundleY),
               bundleX.disclosures ++ bundleY.disclosures,

@@ -102,7 +102,7 @@ class CantonLedgerClientSpec extends AsyncFunSuite, AsyncIOSpec:
                     enriched <- impl.getAllocationFactory(arg)
                     exercised <- run(
                       lc.exercise(
-                        owner,
+                        List(owner),
                         Nil,
                         new AllocationFactory.ContractId(enriched.factoryCid)
                             .exerciseAllocationFactory_Allocate(enriched.arg),

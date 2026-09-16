@@ -51,7 +51,7 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
     extends LedgerClient[CantonM]:
 
     def submit[A](
-        actAs: PartyId,
+        actAs: List[PartyId],
         readAs: List[PartyId],
         submission: Submission[A],
         disclosures: List[DisclosedContract],
@@ -63,7 +63,7 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
                 )
             case None =>
                 val format = new TransactionFormat(
-                  wildcardEventFormat(actAs :: readAs),
+                  wildcardEventFormat(actAs ++ readAs),
                   TransactionShape.LEDGER_EFFECTS,
                 )
                 // All commands ride ONE CommandsSubmission → one atomic transaction. Built
@@ -76,7 +76,7 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
                       Optional.empty(),
                       submission.commands.map(u => u: HasCommands).asJava,
                     )
-                    .withActAs(actAs.value)
+                    .withActAs(actAs.map(_.value).asJava)
                     .withDisclosedContracts(disclosures.asJava)
                 val cmds =
                     if readAs.isEmpty then base else base.withReadAs(readAs.map(_.value).asJava)

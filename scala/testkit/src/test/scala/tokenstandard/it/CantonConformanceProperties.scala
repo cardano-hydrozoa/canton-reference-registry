@@ -78,7 +78,7 @@ object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-
                 r <- impl.getAllocationFactory(arg)
                 ex <- ledger
                     .exercise(
-                      actAs,
+                      List(actAs),
                       Nil,
                       new AllocationFactory.ContractId(r.factoryCid)
                           .exerciseAllocationFactory_Allocate(r.arg),
@@ -105,7 +105,7 @@ object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-
                 r <- impl.getSettlementFactory(arg)
                 ex <- ledger
                     .exercise(
-                      actAs,
+                      List(actAs),
                       Nil,
                       new SettlementFactory.ContractId(r.factoryCid)
                           .exerciseSettlementFactory_SettleBatch(r.arg),
