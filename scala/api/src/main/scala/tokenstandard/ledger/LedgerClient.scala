@@ -26,6 +26,10 @@ trait LedgerClient[F[_]]:
       * admin, need more than one). `disclosures` are the registry-owned contracts the submitter
       * must attach (from `EnrichedFactoryChoice.disclosures`); `readAs` grants read delegation
       * beyond `actAs` for contracts disclosure doesn't cover.
+      *
+      * Implementations may support only exercise commands — the standard's flows are entirely
+      * factory-mediated — and reject other updates (creates) by raising
+      * `RegistryApi.Error.NotImplemented`.
       */
     def submit[A](
         actAs: List[PartyId],
@@ -50,6 +54,9 @@ trait LedgerClient[F[_]]:
     // --- ACS reads for balance checkpoints (port of WalletClientV2) ------------
     // `as` is the party the ledger is read as (contract visibility is per-party on a real ledger);
     // `owner` is whose holdings are counted. Flows usually pass the same party for both.
+    // These reads are TOTAL: absence is a value, never a miss — the balance of an unheld
+    // instrument is 0, a listing of nothing is Nil. (The opposite convention from the registry
+    // side's by-cid reads, which raise ContractNotFound.)
 
     def unlockedBalance(as: PartyId, owner: PartyId, instrument: InstrumentId): F[BigDecimal]
     def lockedBalance(as: PartyId, owner: PartyId, instrument: InstrumentId): F[BigDecimal]
