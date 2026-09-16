@@ -87,8 +87,24 @@ type LedgerM[A] = StateT[[X] =>> Either[Error, X], LedgerState, A]
   *     allocation in the batch, and *unlocked* otherwise. An iterated finalized allocation rolls
   *     forward to a fresh allocation holding its funding.
   *
-  * Visibility is total: `actAs`/`readAs`/`as` and `disclosures` are accepted (same signatures as a
-  * live client) but not enforced.
+  * Known fidelity gaps vs a live Canton ledger (the gated Canton tier covers these):
+  *   - No authorization or visibility: `actAs`/`readAs`/`as` and `disclosures` are accepted (same
+  *     signatures as a live client) but not enforced — anyone can exercise anything.
+  *   - No holding contracts: balances are amounts per (owner, instrument id); [[listHoldingCids]]
+  *     synthesizes one cid per positive balance, allocations lock amounts rather than archiving
+  *     input holdings — so deliberate-contention deduplication (two transfers funded by the same
+  *     holdings both succeeding here, never on Canton) and holding disclosure are unmodeled.
+  *   - Choice semantics are re-implemented from reading the TestTokenV2 source; the only oracle is
+  *     the flows' balance checkpoints, not a diff against the Daml implementation.
+  *   - The admin half of `InstrumentId` is ignored (state keys on the id string): same-named
+  *     instruments from different admins would collide here and not on Canton.
+  *   - No time model: `requestedAt`/`executeBefore`/`allocateBefore`/`settleBefore` deadlines are
+  *     never enforced.
+  *   - An ownerless authorizer account degrades to `PartyId("")` instead of failing.
+  *   - Atomicity is structural (one `StateT` transition per batch), so a submission wrongly split
+  *     into several transactions is inexpressible here — only the Canton tier can catch it.
+  *   - Synthetic events carry zeroed metadata (offset, node ids, witnesses) and failures are domain
+  *     `Error`s, never gRPC status shapes.
   */
 object InMemoryLedger extends LedgerClient[LedgerM]:
 
