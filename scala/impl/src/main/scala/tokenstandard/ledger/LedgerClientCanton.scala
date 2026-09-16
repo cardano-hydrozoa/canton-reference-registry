@@ -107,8 +107,13 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
           false,
         )
 
-    /** The root `ExercisedEvent`s of a LEDGER_EFFECTS transaction, in command order (root node ids
-      * are assigned in execution order — one per submitted command).
+    /** The root `ExercisedEvent`s of a LEDGER_EFFECTS transaction, in command order.
+      *
+      * ASSUMPTION, not a stated Ledger-API guarantee: Canton assigns root node ids in command
+      * order, so sorting them recovers submission order for the positional decode. The count check
+      * catches a gross mismatch but NOT a reordering — two commands returning the same type could
+      * decode swapped. Held live for multi-command submissions (CantonSwapSpec); re-verify on
+      * Canton upgrades.
       */
     private def rootExercisedEvents(
         tx: Transaction,
