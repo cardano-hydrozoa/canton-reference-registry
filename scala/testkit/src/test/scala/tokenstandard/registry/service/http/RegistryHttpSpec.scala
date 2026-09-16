@@ -82,18 +82,20 @@ class RegistryHttpSpec extends AsyncFunSuite, AsyncIOSpec:
         }
 
     test("settlement-factory endpoint threads legs + allocations into disclosures"):
-        val locked = Map(
-          Cid("alloc-1") -> List(
-            Disclosure(
-              TemplateId("TestTokenV2:Holding"),
-              Cid("locked-1"),
-              Blob("b"),
-              SynchronizerId("sync-1")
-            )
-          )
-        )
         val svc = RegistryService(
-          MockAcsSource[IO](rules, List(cfg("cfgA", alice), cfg("cfgB", bob)), locked)
+          MockAcsSource[IO](
+            rules,
+            List(cfg("cfgA", alice), cfg("cfgB", bob)),
+            holdings = Map(
+              Cid("locked-1") -> Disclosure(
+                TemplateId("TestTokenV2:Holding"),
+                Cid("locked-1"),
+                Blob("b"),
+                SynchronizerId("sync-1"),
+              )
+            ),
+            allocations = Map(Cid("alloc-1") -> AllocationDetails(alice, List(Cid("locked-1")))),
+          )
         )
         val ca = Json.obj(
           "transferLegs" -> Json.arr(

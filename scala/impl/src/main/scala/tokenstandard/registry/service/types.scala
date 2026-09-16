@@ -11,11 +11,12 @@ import daml.splice.api.token.holdingv2.Account
   * `HoldingV2.Account`) — CIP-0112 and the Daml module docs deem those definitions authoritative.
   */
 
-/** The fields of an on-ledger contract's interface view that the lifecycle choice-context handlers
-  * read (by contract id) to decide which accounts to assemble a context for, and which holdings to
-  * disclose. Ports the `queryInterfaceContractId` reads in `TestTokenV2_RegistryV2`'s
-  * `getWithdraw/Cancel/AllocationInstruction/TransferOffer` contexts. (These are read-projections
-  * of the on-ledger views, not authoritative types — hence bespoke.)
+/** Read-projections of on-ledger interface views, deliberately NOT the full views: each carries
+  * only the fields the choice-context assembly branches on — which accounts to assemble for, which
+  * holdings to disclose — and nothing else. The full view stays on-ledger (the authoritative Daml
+  * types are not re-modeled here); [[AcsSource]] implementations project down to these when reading
+  * by cid. Ports the `queryInterfaceContractId` reads in `TestTokenV2_RegistryV2`'s
+  * `getWithdraw/Cancel/AllocationInstruction/TransferOffer` contexts.
   */
 final case class AllocationDetails(authorizer: Account, holdingCids: List[Cid])
 final case class TransferDetails(sender: Account, receiver: Account, inputHoldingCids: List[Cid])

@@ -53,9 +53,18 @@ class RegistryServiceSpec extends AnyFunSuite:
 
     test("getSettlementFactory resolves locked holdings by allocation cid and appends them"):
         val configs = List(cfg("cfgA", alice), cfg("cfgB", bob))
-        val locked =
-            Map(Cid("alloc-1") -> List(disc("locked-1")), Cid("alloc-2") -> List(disc("locked-2")))
-        val svc = RegistryService(MockAcsSource[ErrOr](rules, configs, locked))
+        val svc = RegistryService(
+          MockAcsSource[ErrOr](
+            rules,
+            configs,
+            holdings =
+                Map(Cid("locked-1") -> disc("locked-1"), Cid("locked-2") -> disc("locked-2")),
+            allocations = Map(
+              Cid("alloc-1") -> AllocationDetails(alice, List(Cid("locked-1"))),
+              Cid("alloc-2") -> AllocationDetails(bob, List(Cid("locked-2"))),
+            ),
+          )
+        )
         val accounts = List(alice, bob)
 
         val bundle = svc

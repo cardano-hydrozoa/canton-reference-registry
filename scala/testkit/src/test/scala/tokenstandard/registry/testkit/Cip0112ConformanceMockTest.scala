@@ -59,14 +59,20 @@ object Cip0112ConformanceMockTest extends Properties("cip0112-conformance-mock")
         )
     private val holdingDisc: Disclosure =
         Disclosure(tid("Holding"), Cid("h1"), Blob("aDE="), SynchronizerId("sync-1"))
+    private val holdingDisc2: Disclosure =
+        Disclosure(tid("Holding"), Cid("h2"), Blob("aDI="), SynchronizerId("sync-1"))
 
-    // Lifecycle inputs the mock is configured to resolve (fixed known cids).
+    // Lifecycle inputs the mock is configured to resolve (fixed known cids). BOTH settlement
+    // allocations exist: P3 (prefetchability) states the context VALUES don't depend on WHICH
+    // contract the args name — an unknown cid is a ContractNotFound, not a P3 input.
     private val mock = MockAcsSource[EitherT](
       rules,
       configs,
-      locked = Map(Cid("alloc-1") -> List(holdingDisc)),
-      holdings = Map(Cid("h1") -> holdingDisc),
-      allocations = Map(Cid("alloc-1") -> AllocationDetails(domainAccount(alice), List(Cid("h1")))),
+      holdings = Map(Cid("h1") -> holdingDisc, Cid("h2") -> holdingDisc2),
+      allocations = Map(
+        Cid("alloc-1") -> AllocationDetails(domainAccount(alice), List(Cid("h1"))),
+        Cid("alloc-2") -> AllocationDetails(domainAccount(alice), List(Cid("h2"))),
+      ),
       allocationInstructions = Map(Cid("ai-1") -> domainAccount(alice)),
       transferInstructions = Map(
         Cid("ti-1") -> TransferDetails(domainAccount(alice), domainAccount(bob), List(Cid("h1")))

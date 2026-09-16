@@ -83,12 +83,13 @@ class RegistryClientRoundTripSpec extends AsyncFunSuite, AsyncIOSpec:
         }
 
     test("getSettlementFactory round-trips: legs + allocations thread into disclosures"):
-        val locked = Map(Cid("alloc-1") -> List(holdingDisc("locked-1")))
         val svc = RegistryService(
           MockAcsSource[IO](
             rules,
             List(cfg("cfg-alice", basic(alice)), cfg("cfg-bob", basic(bob))),
-            locked
+            holdings = Map(Cid("locked-1") -> holdingDisc("locked-1")),
+            allocations =
+                Map(Cid("alloc-1") -> AllocationDetails(basic(alice), List(Cid("locked-1")))),
           )
         )
         val leg = TokenStandardHelpers

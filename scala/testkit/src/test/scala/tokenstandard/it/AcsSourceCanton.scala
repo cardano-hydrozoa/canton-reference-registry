@@ -1,5 +1,6 @@
 package tokenstandard.it
 
+import cats.Monad
 import cats.effect.IO
 import com.daml.ledger.javaapi.data.ContractFilter
 import daml.splice.api.token.allocationinstructionv2.AllocationInstruction
@@ -47,43 +48,62 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
         )
 
     /** Disclose the given holdings via the `Token` *template* (as the Daml
-      * `queryDisclosure' @Token` does), selecting them by contract id. Two Ledger-API constraints
-      * force list-and-filter here (both diverge from the Daml's per-cid fetch): disclosures must
-      * come from the template read, not the `Holding` interface — an interface-filtered read
-      * carries no usable `createdEventBlob`, which the ledger rejects (`MISSING_FIELD:
-      * DisclosedContract.createdEventBlob`); and rxjava's `EventQueryService.getEventsByContractId`
-      * predates Canton's mandatory `event_format` (`MISSING_FIELD: event_format`), so there is no
-      * usable by-cid fetch.
+      * `queryDisclosure' @Token` does), selecting them by contract id; any cid not in the ACS
+      * raises `ContractNotFound` (the trait's miss contract — no silent partial results). Two
+      * Ledger-API constraints force list-and-filter here (both diverge from the Daml's per-cid
+      * fetch): disclosures must come from the template read, not the `Holding` interface — an
+      * interface-filtered read carries no usable `createdEventBlob`, which the ledger rejects
+      * (`MISSING_FIELD: DisclosedContract.createdEventBlob`); and rxjava's
+      * `EventQueryService.getEventsByContractId` predates Canton's mandatory `event_format`
+      * (`MISSING_FIELD: event_format`), so there is no usable by-cid fetch.
       */
     def holdingDisclosures(holdingCids: List[Cid]): IO[List[Disclosure]] =
-        val wanted = holdingCids.map(_.value).toSet
+        val wanted = holdingCids.map(_.value).distinct
         if wanted.isEmpty then IO.pure(Nil)
         else
-            runIO(ledger.activeWithDisclosure(ContractFilter.of(Token.COMPANION), admin)).map(
-              _.collect {
-                  case h if wanted.contains(h.contractId) =>
-                      Disclosure(
-                        TemplateId(h.templateId),
-                        Cid(h.contractId),
-                        Blob(h.createdEventBlobBase64),
-                        SynchronizerId(h.synchronizerId),
-                      )
-              }
-            )
+            runIO(ledger.activeWithDisclosure(ContractFilter.of(Token.COMPANION), admin)).flatMap {
+                all =>
+                    val byCid = all.map(h => h.contractId -> h).toMap
+                    wanted.filterNot(byCid.contains) match
+                        case missing :: _ =>
+                            IO.raiseError(RegistryApi.Error.ContractNotFound(missing))
+                        case Nil =>
+                            IO.pure(wanted.map { c =>
+                                val h = byCid(c)
+                                Disclosure(
+                                  TemplateId(h.templateId),
+                                  Cid(h.contractId),
+                                  Blob(h.createdEventBlobBase64),
+                                  SynchronizerId(h.synchronizerId),
+                                )
+                            })
+            }
 
     /** Port of `getLockedTokensForAllocationsD`: the union of the named allocations' locked
-      * holdings, disclosed via [[holdingDisclosures]].
+      * holdings, disclosed via [[holdingDisclosures]]. Batches the trait default's per-cid
+      * allocation reads into one ACS scan; commutes with the default derivation — an unknown
+      * allocation cid raises `ContractNotFound` just as [[allocation]] would.
       */
-    def lockedHoldingDisclosures(allocationCids: List[Cid]): IO[List[Disclosure]] =
-        val wanted = allocationCids.map(_.value).toSet
-        for
-            allocs <- runIO(ledger.activeWithDisclosure(Allocation.contractFilter(), admin))
-            holdingCids = allocs
-                .filter(a => wanted.contains(a.contractId))
-                .flatMap(_.contract.data.holdingCids.asScala.toList.map(h => Cid(h.contractId)))
-                .distinct
-            discs <- holdingDisclosures(holdingCids)
-        yield discs
+    override def lockedHoldingDisclosures(allocationCids: List[Cid])(using
+        Monad[IO]
+    ): IO[List[Disclosure]] =
+        val wanted = allocationCids.map(_.value).distinct
+        if wanted.isEmpty then IO.pure(Nil)
+        else
+            for
+                allocs <- runIO(ledger.activeWithDisclosure(Allocation.contractFilter(), admin))
+                byCid = allocs.map(a => a.contractId -> a).toMap
+                _ <- wanted.filterNot(byCid.contains) match
+                    case missing :: _ => IO.raiseError(RegistryApi.Error.ContractNotFound(missing))
+                    case Nil          => IO.unit
+                holdingCids = wanted
+                    .flatMap(c =>
+                        byCid(c).contract.data.holdingCids.asScala.toList
+                            .map(h => Cid(h.contractId))
+                    )
+                    .distinct
+                discs <- holdingDisclosures(holdingCids)
+            yield discs
 
     def allocation(cid: Cid): IO[AllocationDetails] =
         findByCid(Allocation.contractFilter(), cid).map { d =>

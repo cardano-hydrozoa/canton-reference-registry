@@ -10,15 +10,16 @@ import tokenstandard.registry.RegistryApi
   * [[RegistryService]]). Used with `Either[Throwable, *]` for the pure wiring test and `IO` for the
   * http4s test.
   *
-  * The by-cid maps (`locked`, `holdings`, `allocations`, `allocationInstructions`,
-  * `transferInstructions`) stand in for the ledger reads; a lookup miss throws
-  * `Error.ContractNotFound` directly (the mock has no error channel in `F`) — the same error the
-  * Canton source raises, so the HTTP layer's 404 mapping is exercised by mock-backed tests too.
+  * The by-cid maps (`holdings`, `allocations`, `allocationInstructions`, `transferInstructions`)
+  * stand in for the ledger reads; a lookup miss throws `Error.ContractNotFound` directly (the mock
+  * has no error channel in `F`) — the trait's miss contract, and the same error the Canton source
+  * raises, so the HTTP layer's 404 mapping is exercised by mock-backed tests too.
+  * `lockedHoldingDisclosures` is the trait default, so settlement fixtures populate `allocations`
+  * (cid -> holding cids) and `holdings` (cid -> disclosure).
   */
 final class MockAcsSource[F[_]: Applicative](
     rules: Contract[TokenRulesPayload],
     configs: List[Contract[AccountConfigPayload]],
-    locked: Map[Cid, List[Disclosure]] = Map.empty[Cid, List[Disclosure]],
     holdings: Map[Cid, Disclosure] = Map.empty[Cid, Disclosure],
     allocations: Map[Cid, AllocationDetails] = Map.empty[Cid, AllocationDetails],
     allocationInstructions: Map[Cid, Account] = Map.empty[Cid, Account],
@@ -30,9 +31,6 @@ final class MockAcsSource[F[_]: Applicative](
     def tokenRules: F[Contract[TokenRulesPayload]] = rules.pure[F]
 
     def accountConfigs: F[List[Contract[AccountConfigPayload]]] = configs.pure[F]
-
-    def lockedHoldingDisclosures(allocationCids: List[Cid]): F[List[Disclosure]] =
-        allocationCids.flatMap(cid => locked.getOrElse(cid, Nil)).pure[F]
 
     def holdingDisclosures(holdingCids: List[Cid]): F[List[Disclosure]] =
         holdingCids.map(cid => holdings.getOrElse(cid, miss(cid))).pure[F]

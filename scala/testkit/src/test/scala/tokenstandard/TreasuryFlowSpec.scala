@@ -1,10 +1,13 @@
 package tokenstandard
 
 import cats.arrow.FunctionK
+import cats.data.Kleisli
 import cats.data.StateT
+import daml.splice.api.token.holdingv2.Account
 import daml.splice.api.token.holdingv2.InstrumentId
 import org.scalatest.funsuite.AnyFunSuite
 import tokenstandard.PartyId
+import tokenstandard.TokenStandardHelpers.basicAccount
 import tokenstandard.ledger.InMemoryLedger
 import tokenstandard.ledger.LedgerM
 import tokenstandard.ledger.LedgerState
@@ -54,9 +57,43 @@ object TestRegistries:
 
     private type ErrOr[A] = Either[Throwable, A]
 
-    /** [[LocalRegistryApi]] over a minimal [[MockAcsSource]] (a `TokenRules` contract, no account
-      * configs — basic accounts have none, cf. `matchConfig` dropping unmatched accounts), lifted
-      * into [[LedgerM]]. `rulesCid` distinguishes registries in multi-registry specs.
+    /** Registry effect: a read of the CURRENT [[LedgerState]] (Kleisli), so allocations the flow
+      * creates on [[InMemoryLedger]] resolve by cid — the [[AcsSource]] miss contract holds exactly
+      * as against a real ledger.
+      */
+    private type RegM[A] = Kleisli[ErrOr, LedgerState, A]
+
+    /** [[AcsSource]] over the in-memory ledger's state: allocations resolve from
+      * `LedgerState.allocs` (unknown or closed cid raises `ContractNotFound`, closed = archived).
+      * The in-memory model has no holding *contracts*, so a resolved allocation locks no
+      * disclosable holdings (`holdingCids = Nil` — not a miss) and any non-empty holding-cid
+      * request is a miss; `lockedHoldingDisclosures` is the trait default. No account configs —
+      * basic accounts have none, cf. `matchConfig` dropping unmatched accounts.
+      */
+    private def acsSource(rules: Contract[TokenRulesPayload]): AcsSource[RegM] =
+        new AcsSource[RegM]:
+            def tokenRules: RegM[Contract[TokenRulesPayload]] = Kleisli.pure(rules)
+            def accountConfigs: RegM[List[Contract[AccountConfigPayload]]] = Kleisli.pure(Nil)
+            def holdingDisclosures(holdingCids: List[Cid]): RegM[List[Disclosure]] =
+                holdingCids match
+                    case Nil    => Kleisli.pure(Nil)
+                    case c :: _ => Kleisli.liftF(Left(Error.ContractNotFound(c.value)))
+            def allocation(cid: Cid): RegM[AllocationDetails] =
+                Kleisli(s =>
+                    s.allocs
+                        .get(cid.value)
+                        .filterNot(_.closed)
+                        .toRight(Error.ContractNotFound(cid.value))
+                        .map(rec => AllocationDetails(rec.authorizer.basicAccount, Nil))
+                )
+            def allocationInstruction(cid: Cid): RegM[Account] =
+                Kleisli.liftF(Left(Error.ContractNotFound(cid.value)))
+            def transferInstruction(cid: Cid): RegM[TransferDetails] =
+                Kleisli.liftF(Left(Error.ContractNotFound(cid.value)))
+
+    /** [[LocalRegistryApi]] over [[acsSource]], lifted into [[LedgerM]] (each registry call reads
+      * the ledger state it runs against, mutating nothing). `rulesCid` distinguishes registries in
+      * multi-registry specs.
       */
     def inMemory(rulesCid: String): RegistryApi[LedgerM] =
         val rules: Contract[TokenRulesPayload] =
@@ -67,15 +104,20 @@ object TestRegistries:
               Blob("cnVsZXM="), // base64("rules") — disclosuresOf base64-decodes blobs
               SynchronizerId("sync-1"),
             )
-        val impl = LocalRegistryApi[ErrOr](
-          RegistryService(MockAcsSource[ErrOr](rules, Nil)),
+        val impl = LocalRegistryApi[RegM](
+          RegistryService(acsSource(rules)),
           RegistryMetadata.basic("adminTT2", List("X", "Y")),
         )
         RegistryApi.mapK(impl)(
-          new FunctionK[ErrOr, LedgerM]:
-              def apply[A](fa: ErrOr[A]): LedgerM[A] =
-                  StateT.liftF(fa.left.map {
-                      case e: Error => e
-                      case t        => Error.Unexpected(Option(t.getMessage).getOrElse(t.toString))
-                  })
+          new FunctionK[RegM, LedgerM]:
+              def apply[A](fa: RegM[A]): LedgerM[A] =
+                  StateT { s =>
+                      fa.run(s)
+                          .left
+                          .map {
+                              case e: Error => e
+                              case t => Error.Unexpected(Option(t.getMessage).getOrElse(t.toString))
+                          }
+                          .map(a => (s, a))
+                  }
         )

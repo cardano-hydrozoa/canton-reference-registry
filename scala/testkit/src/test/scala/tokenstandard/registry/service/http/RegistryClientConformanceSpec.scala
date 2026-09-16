@@ -63,7 +63,6 @@ class RegistryClientConformanceSpec extends AsyncFunSuite, AsyncIOSpec:
       MockAcsSource[IO](
         rules,
         List(cfg("cfg-alice", basic(alice)), cfg("cfg-bob", basic(bob))),
-        locked = Map(Cid("alloc-1") -> List(holdingDisc)),
         holdings = Map(Cid("h1") -> holdingDisc),
         allocations = Map(Cid("alloc-1") -> AllocationDetails(basic(alice), List(Cid("h1")))),
         allocationInstructions = Map(Cid("ai-1") -> basic(alice)),
