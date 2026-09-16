@@ -13,8 +13,8 @@ import tokenstandard.registry.service.CtxValue.CtxList
 import scala.jdk.OptionConverters.*
 
 /** The Daml-JSON-encoding-sensitive boundary of the registry service, isolated here so it can be
-  * unit-tested on its own and swapped/verified against the canonical Daml Java-codegen encoder when
-  * the Canton integration lands (Tier-2 / step 7).
+  * unit-tested on its own. The encodings are exercised for real by the live HTTP flow specs, where
+  * a Canton ledger accepts the choice contexts rendered here.
   *
   * Two directions:
   *   - decode: pull the accounts (and allocation cids) the assembly needs out of the incoming

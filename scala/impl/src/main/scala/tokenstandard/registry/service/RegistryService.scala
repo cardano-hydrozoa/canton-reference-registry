@@ -5,10 +5,9 @@ import cats.syntax.all.*
 import daml.splice.api.token.holdingv2.Account
 
 /** The F-level registry: fetch contracts via [[AcsSource]], assemble the choice context via
-  * [[Assemble]]. Exposes the two off-ledger endpoints the treasury / cross-registry-swap flow needs
-  * (`getAllocationFactory`, `getSettlementFactory`); the remaining `RegistryApiV2` surface
-  * (transfer factory, allocation/transfer-instruction lifecycle contexts) is added when a flow
-  * needs it.
+  * [[Assemble]]. Covers the off-ledger `RegistryApiV2` surface: the factory endpoints
+  * (`getAllocationFactory`, `getSettlementFactory`, transfer factory via [[choiceContext]]) and the
+  * allocation / allocation-instruction / transfer-instruction lifecycle contexts.
   *
   * `MonadThrow` is required at this use site (not on [[AcsSource]]) so pure [[AssembleError]]s can
   * be raised into `F`, matching how `TreasuryFlow` constrains its `F`.
@@ -59,7 +58,7 @@ final class RegistryService[F[_]](src: AcsSource[F])(using F: MonadThrow[F]):
 
     // -- Lifecycle choice contexts (each reads a view via `src`, then `choiceContext`) ------------
 
-    /** Cluster B — allocation lifecycle. Context for withdraw (`includeLocked = false`) or cancel
+    /** Allocation lifecycle. Context for withdraw (`includeLocked = false`) or cancel
       * (`includeLocked = true`) of allocation `cid`: assemble for its authorizer, and for cancel
       * additionally disclose the allocation's locked holdings. Port of `getWithdrawContextV2` /
       * `getCancelContextV2`.
@@ -73,8 +72,8 @@ final class RegistryService[F[_]](src: AcsSource[F])(using F: MonadThrow[F]):
             bundle <- choiceContext(List(details.authorizer), extra)
         yield bundle
 
-    /** Cluster C — allocation-instruction lifecycle. Context for withdraw/accept of instruction
-      * `cid`: assemble for its authorizer. Port of `getAllocationInstructionContextV2`.
+    /** Allocation-instruction lifecycle. Context for withdraw/accept of instruction `cid`: assemble
+      * for its authorizer. Port of `getAllocationInstructionContextV2`.
       */
     def allocationInstructionContext(cid: Cid): F[ContextBundle] =
         for
@@ -82,9 +81,9 @@ final class RegistryService[F[_]](src: AcsSource[F])(using F: MonadThrow[F]):
             bundle <- choiceContext(List(authorizer))
         yield bundle
 
-    /** Cluster D — transfer-instruction lifecycle. Context for accept/reject/withdraw of
-      * instruction `cid`: assemble for its sender + receiver, disclosing the instruction's
-      * `inputHoldingCids`. Port of `getTransferOfferContextV2`.
+    /** Transfer-instruction lifecycle. Context for accept/reject/withdraw of instruction `cid`:
+      * assemble for its sender + receiver, disclosing the instruction's `inputHoldingCids`. Port of
+      * `getTransferOfferContextV2`.
       */
     def transferInstructionContext(cid: Cid): F[ContextBundle] =
         for

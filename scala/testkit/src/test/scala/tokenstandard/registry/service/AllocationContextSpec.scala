@@ -8,9 +8,9 @@ import tokenstandard.TokenStandardHelpers
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
 
-/** Cluster B wiring test: [[RegistryService.allocationContext]] via [[LocalRegistryApi]] over an
-  * in-memory [[MockAcsSource]] carrying one allocation. Withdraw assembles for the authorizer with
-  * no locked-holding disclosure; cancel adds the allocation's locked holding (`includeLocked`).
+/** Wiring test: [[RegistryService.allocationContext]] via [[LocalRegistryApi]] over an in-memory
+  * [[MockAcsSource]] carrying one allocation. Withdraw assembles for the authorizer with no
+  * locked-holding disclosure; cancel adds the allocation's locked holding (`includeLocked`).
   * `F = Either[Throwable, *]`.
   */
 class AllocationContextSpec extends AnyFunSuite:

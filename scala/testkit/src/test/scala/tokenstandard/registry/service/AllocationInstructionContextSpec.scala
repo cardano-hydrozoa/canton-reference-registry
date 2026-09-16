@@ -9,10 +9,10 @@ import tokenstandard.registry.RegistryApi
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
 
-/** Cluster C wiring test: both allocation-instruction lifecycle contexts (withdraw + accept)
-  * resolve through [[RegistryService.allocationInstructionContext]] to a context assembled for the
-  * instruction's authorizer only — no locked-holding disclosures (unlike the allocation/settlement
-  * paths). `F = Either[Throwable, *]`.
+/** Wiring test: both allocation-instruction lifecycle contexts (withdraw + accept) resolve through
+  * [[RegistryService.allocationInstructionContext]] to a context assembled for the instruction's
+  * authorizer only — no locked-holding disclosures (unlike the allocation/settlement paths).
+  * `F = Either[Throwable, *]`.
   */
 class AllocationInstructionContextSpec extends AnyFunSuite:
 
