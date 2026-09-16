@@ -23,6 +23,16 @@ import tokenstandard.registry.openapi.metadata.models as md
   * it serves; a partial implementation stubs the rest in its own code (e.g. raising
   * [[RegistryApi.Error.NotImplemented]]). Errors are folded into `F` (the flow runs in a
   * `MonadError[F, Error]`) — see [[tokenstandard.ledger.LedgerClient]].
+  *
+  * Miss semantics, binding on every implementation: a lifecycle handler whose cid does not resolve
+  * to an active contract of the expected interface raises [[RegistryApi.Error.ContractNotFound]]
+  * into `F` (the HTTP surface maps it to 404); [[getInstrument]] on an unknown id raises
+  * [[RegistryApi.Error.InstrumentNotFound]] likewise. An unrecognized `pageToken` is NOT an error —
+  * it is a position, and yields the (possibly empty) page after it.
+  *
+  * The `meta` parameter on the lifecycle handlers is forwarded verbatim on the wire; the reference
+  * implementation ignores it (TestTokenV2 consumes no request metadata), but remote registries may
+  * read it — do not assume it is inert.
   */
 trait RegistryApi[F[_]]:
     import RegistryApi.*
@@ -88,12 +98,15 @@ trait RegistryApi[F[_]]:
 
     def getRegistryInfo: F[md.GetRegistryInfoResponse]
 
-    /** `pageToken` is the `nextPageToken` from the previous page (the last instrument id). */
+    /** `pageToken` is the `nextPageToken` from the previous page (the last instrument id). An
+      * unrecognized token is a position, not an error: the page after it, possibly empty.
+      */
     def listInstruments(
         pageSize: Option[Int],
         pageToken: Option[String],
     ): F[md.ListInstrumentsResponse]
 
+    /** Raises [[RegistryApi.Error.InstrumentNotFound]] if the id is not in the catalog. */
     def getInstrument(instrumentId: String): F[md.Instrument]
 
 object RegistryApi:
