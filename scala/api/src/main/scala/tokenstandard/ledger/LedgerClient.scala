@@ -10,8 +10,9 @@ import tokenstandard.PartyId
 /** The ledger-interaction seam a token-standard consumer needs next to
   * [[tokenstandard.registry.RegistryApi]]: submit commands and read the ACS/balances. The Daml
   * Script fuses both into its registry helpers; here they are one trait so a flow is parametric in
-  * the ledger the same way it is in the registry. Reference implementation: [[InMemoryLedger]]; a
-  * Canton Ledger-API client is the live one.
+  * the ledger the same way it is in the registry. Reference implementation: an in-process
+  * Daml-engine-backed ledger (`EngineLedger`, in the testkit); a Canton Ledger-API client
+  * (`LedgerClientCanton`) is the live one.
   *
   * Errors live in `F` (e.g. `MonadError[F, RegistryApi.Error]`), not in the return values, so a
   * failed operation aborts the flow.

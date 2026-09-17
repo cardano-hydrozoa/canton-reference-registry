@@ -42,9 +42,10 @@ val commonScalacOptions = Seq(
   // Generated code (Daml codegen, OpenAPI DTOs) under src_managed carries unused imports; don't let
   // -Werror reject machine-generated code. Our own sources stay strict.
   "-Wconf:src=.*src_managed.*:s",
-  // InMemoryLedger has total visibility: its actAs/readAs/as/disclosures params are accepted for
-  // signature parity with a live client, not enforced. Silence the unused-param warning only there.
-  "-Wconf:msg=unused explicit parameter&src=.*InMemoryLedger\\.scala:s",
+  // EngineLedger's LedgerClient reads take an `as`/`owner` visibility party accepted for signature
+  // parity with the live client; the single-store engine has no per-party visibility to enforce it
+  // against. Silence the unused-param warning only there.
+  "-Wconf:msg=unused explicit parameter&src=.*EngineLedger\\.scala:s",
 )
 
 // sbt 2 mis-detects forked ScalaCheck runs and drops all but the first property of a suite; route
@@ -263,6 +264,15 @@ lazy val testkit = (project in file("testkit"))
         "org.http4s" %% "http4s-ember-client" % http4sV % Test,
         "com.dimafeng" %% "testcontainers-scala-scalatest" % testcontainersV % Test,
         "org.slf4j" % "slf4j-simple" % "2.0.16" % Test,
+        // The REAL Daml interpreter backing EngineLedger (the in-process reference ledger). Pinned
+        // to the Canton CONTAINER version (3.5.15), NOT the bindings pin — the engine must match
+        // the LF the vendored splice DARs were compiled against. daml-lf-archive (DarDecoder) comes
+        // transitively. Exclude its Scala-2.13 cats/scalacheck (clash with our Scala 3 ones).
+        ("com.daml" % "daml-lf-engine_2.13" % "3.5.15" % Test)
+            .exclude("org.typelevel", "cats-core_2.13")
+            .exclude("org.typelevel", "cats-kernel_2.13")
+            .exclude("org.typelevel", "cats-free_2.13")
+            .exclude("org.scalacheck", "scalacheck_2.13"),
       ),
       useFixedScalaCheck, // our ScalaCheck suites (FrameworkSmoke, CantonConformanceProperties)
     )
