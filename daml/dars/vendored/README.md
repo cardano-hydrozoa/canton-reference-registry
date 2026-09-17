@@ -5,10 +5,13 @@ These `.dar` files are the `data-dependencies` of the daml/ and scala/ builds (s
 ([m3 — building & packaging](https://docs.canton.network/appdev/modules/m3-building-packaging)):
 there is no public package registry for these, so we vendor them.
 
-**They are not committed.** The `*.dar` here are gitignored symlinks into the nix
-store, laid down on devShell entry by `../../nix/link-vendored.sh`. The source of
-truth is the `vendored-splice` derivation (`../../nix/vendored.nix`), which builds
-them from pinned splice source — see below. Only this README is tracked.
+**They are committed** as real files, so JitPack and fresh clones build (codegen +
+the `engine`/`testkit-it` resource bundling) with no nix. The `vendored-splice`
+derivation (`../../nix/vendored.nix`) remains the source of truth and the refresh
+mechanism: it builds them from pinned splice source (see below), and the devShell's
+`../../nix/link-vendored.sh` only re-links when a committed copy is absent. To refresh
+after a pin bump: `rm daml/dars/vendored/*.dar`, re-enter the shell, then commit the
+new copies.
 
 ## Provenance
 

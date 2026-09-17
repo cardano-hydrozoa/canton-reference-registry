@@ -2,9 +2,10 @@
 
 Source: `canton-network/splice` tag `0.6.11`, `token-standard/splice-api-token-*/openapi/`
 (`metadata-v1.yaml` is that tag's `token-metadata-v1.yaml`, renamed). Like the vendored
-DARs, these `*.yaml` are **not committed** — they are gitignored symlinks into the nix
-store, produced by the `vendored-splice` derivation (`../../daml/nix/vendored.nix`) and
-laid down on devShell entry. Only this README is tracked.
+DARs, these `*.yaml` are **committed** (real files, so JitPack and fresh clones build the
+`api` codegen with no nix). The `vendored-splice` derivation (`../../daml/nix/vendored.nix`)
+remains the source of truth and the refresh mechanism: it produces them, and the devShell's
+`link-vendored.sh` only re-links when a committed copy is absent.
 
 The registry off-ledger API is **not one spec** — it is split per interface, each file
 self-contained (schemas like `ChoiceContext`/`DisclosedContract` are duplicated per file

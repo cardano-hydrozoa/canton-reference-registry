@@ -1,0 +1,12 @@
+# JitPack build config. The Scala library lives under scala/ (this repo also holds a daml/ project),
+# so cd there before publishing. Without this file JitPack builds with an old default JDK; sbt 2 (see
+# scala/project/build.properties) needs a modern one. `sbt publishM2` is JitPack's sbt publish step,
+# stated explicitly here because the build is not at the repo root.
+#
+# The build reads the vendored splice DARs (daml/dars/vendored/*.dar) and OpenAPI specs
+# (scala/registry-openapi/*.yaml) as codegen/resource inputs; those are committed (not the nix
+# symlinks the devShell lays down), so this build needs no nix.
+jdk:
+  - openjdk21
+install:
+  - cd scala && sbt publishM2

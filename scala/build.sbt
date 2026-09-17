@@ -1,8 +1,16 @@
 import scala.sys.process.Process
 
 ThisBuild / scalaVersion := "3.3.7" // LTS; matches the hydrozoa repo
-ThisBuild / organization := "tokenstandard"
-ThisBuild / version := "0.1.0-SNAPSHOT" // consumed via sbt ProjectRef today; jitpack coords later
+// Published via JitPack, which builds this repo from a git tag and serves its ~/.m2 output verbatim
+// under `com.github.<user>.<repo>/...`. So the groupId must be the full `com.github.<user>.<repo>`
+// (NOT just `com.github.<user>`): each module then publishes at exactly the path JitPack serves, and
+// a module's POM lists its inter-module deps under the same group so they resolve too. `version` must
+// match the release tag — to cut `v0.1.0`, keep `version := "0.1.0"`, commit, then tag `v0.1.0`.
+// Consumers pull a module by its artifactId (the `name` below) with `%%` (the real `_3` artifact):
+//   resolvers += "jitpack" at "https://jitpack.io"
+//   "com.github.cardano-hydrozoa.canton-reference-registry" %% "registry-engine" % "0.1.0"
+ThisBuild / organization := "com.github.cardano-hydrozoa.canton-reference-registry"
+ThisBuild / version := "0.1.0"
 
 // scalafix reads SemanticDB emitted by the Scala 3 compiler; -Wunused:all backs
 // OrganizeImports' removeUnused.
