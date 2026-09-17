@@ -6,12 +6,10 @@ import cats.effect.testing.scalatest.AsyncIOSpec
 import com.daml.ledger.api.v2.PackageServiceGrpc
 import com.daml.ledger.api.v2.PackageServiceOuterClass.ListPackagesRequest
 import com.daml.ledger.javaapi.data.ContractFilter
-import com.dimafeng.testcontainers.GenericContainer
 import daml.splice.testing.tokens.testtokenv2.TokenRules
 import io.grpc.netty.NettyChannelBuilder
 import org.scalatest.funsuite.AsyncFunSuite
 import tokenstandard.it.CantonTestTokenOps.*
-import tokenstandard.ledger.LedgerClientCanton
 
 import scala.jdk.CollectionConverters.*
 
@@ -32,12 +30,7 @@ import scala.jdk.CollectionConverters.*
   *   CANTON_IT=1 JAVA_TOOL_OPTIONS=-Dapi.version=1.44 sbt "testOnly tokenstandard.it.CantonSmokeSpec"
   * }}}
   */
-class CantonSmokeSpec extends AsyncFunSuite, AsyncIOSpec:
-
-    private val container: Resource[IO, GenericContainer] =
-        Resource.make(IO.blocking { val c = CantonContainer(); c.start(); c })(c =>
-            IO.blocking(c.stop())
-        )
+class CantonSmokeSpec extends AsyncFunSuite, AsyncIOSpec, CantonItFixture:
 
     /** Package ids on the participant, via the raw `PackageService` gRPC stub (short-lived
       * channel).
@@ -56,23 +49,15 @@ class CantonSmokeSpec extends AsyncFunSuite, AsyncIOSpec:
                 val _ = channel.shutdownNow()
         }
 
-    private def ledgerClient(port: Int): Resource[IO, LedgerClientCanton] =
-        Resource.make(IO.blocking(LedgerClientCanton.connect("localhost", port)))(l =>
-            IO.blocking(l.close())
-        )
-
     private val hints = List("alice", "bob", "hydrozoa", "adminTT2")
 
     test("canton boots, uploads DARs, and serves the Ledger API"):
-        assume(
-          sys.env.get("CANTON_IT").contains("1"),
-          "set CANTON_IT=1 to run Canton integration tests"
-        )
+        requireCantonIt()
         val setup =
             for
-                c <- container
-                port <- Resource.eval(IO.blocking(c.mappedPort(CantonContainer.LedgerApiPort)))
-                ledger <- ledgerClient(port)
+                c <- cantonContainer
+                port <- Resource.eval(portOf(c))
+                ledger <- ledgerClient("localhost", port)
             yield (port, ledger)
 
         setup.use { (port, ledger) =>

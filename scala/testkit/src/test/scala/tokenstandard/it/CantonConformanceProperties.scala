@@ -15,9 +15,9 @@ import daml.splice.api.token.allocationv2.SettlementInfo
 import daml.splice.api.token.allocationv2.TransferLeg
 import daml.splice.api.token.holdingv2.Holding
 import org.scalacheck.Prop
+import org.scalacheck.Properties
 import org.scalacheck.PropertyM
 import org.scalacheck.Test
-import org.scalacheck.YetAnotherProperties
 import tokenstandard.PartyId
 import tokenstandard.TokenStandardHelpers
 import tokenstandard.TokenStandardHelpers.basicAccount
@@ -53,7 +53,7 @@ import tokenstandard.registry.service.RegistryService
   * it to a single boot. Gated on `CANTON_IT=1` — without it no property is registered and Docker is
   * never touched (see [[CantonSmokeSpec]] for the sandbox run recipe).
   */
-object CantonConformanceProperties extends YetAnotherProperties("cip0112-canton-acceptance"):
+object CantonConformanceProperties extends Properties("cip0112-canton-acceptance"):
 
     override def overrideParameters(p: Test.Parameters): Test.Parameters =
         p.withMinSuccessfulTests(1).withWorkers(1)

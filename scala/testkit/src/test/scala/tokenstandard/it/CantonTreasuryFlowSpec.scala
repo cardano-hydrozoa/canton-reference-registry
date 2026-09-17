@@ -1,12 +1,9 @@
 package tokenstandard.it
 
-import cats.arrow.FunctionK
-import cats.data.EitherT
 import cats.effect.Clock
 import cats.effect.IO
 import cats.effect.Resource
 import cats.effect.testing.scalatest.AsyncIOSpec
-import com.dimafeng.testcontainers.GenericContainer
 import org.scalatest.funsuite.AsyncFunSuite
 import tokenstandard.PartyId
 import tokenstandard.TreasuryEnv
@@ -15,7 +12,6 @@ import tokenstandard.it.CantonTestTokenOps.*
 import tokenstandard.ledger.CantonM
 import tokenstandard.ledger.LedgerClientCanton
 import tokenstandard.registry.RegistryApi
-import tokenstandard.registry.RegistryApi.Error
 import tokenstandard.registry.service.LocalRegistryApi
 import tokenstandard.registry.service.RegistryMetadata
 import tokenstandard.registry.service.RegistryService
@@ -30,43 +26,16 @@ import tokenstandard.registry.service.RegistryService
   * `CantonM`; the flow needs one `F`, so `RegistryApi.mapK` lifts the registry into `CantonM`.
   * Gated on `CANTON_IT=1` (see [[CantonSmokeSpec]] for the sandbox run recipe).
   */
-class CantonTreasuryFlowSpec extends AsyncFunSuite, AsyncIOSpec:
-
-    private val cantonContainer: Resource[IO, GenericContainer] =
-        Resource.make(IO.blocking { val c = CantonContainer(); c.start(); c })(c =>
-            IO.blocking(c.stop())
-        )
-
-    private def ledgerClient(host: String, port: Int): Resource[IO, LedgerClientCanton] =
-        Resource.make(IO.blocking(LedgerClientCanton.connect(host, port)))(l =>
-            IO.blocking(l.close())
-        )
-
-    private def run[A](c: CantonM[A]): IO[A] = c.value.flatMap(IO.fromEither)
-
-    /** Lift the IO-based reference registry into the flow's `CantonM` (RegistryApi errors pass
-      * through; anything else is wrapped as `Unexpected`).
-      */
-    private val liftIO: FunctionK[IO, CantonM] = new FunctionK[IO, CantonM]:
-        def apply[A](fa: IO[A]): CantonM[A] =
-            EitherT(fa.attempt.map(_.left.map {
-                case e: Error => e
-                case t        => Error.Unexpected(Option(t.getMessage).getOrElse(t.toString))
-            }))
+class CantonTreasuryFlowSpec extends AsyncFunSuite, AsyncIOSpec, CantonItFixture:
 
     test("TreasuryFlow (port of TestHydrozoaTreasury) runs green on live Canton"):
-        assume(
-          sys.env.get("CANTON_IT").contains("1"),
-          "set CANTON_IT=1 to run Canton integration tests"
-        )
+        requireCantonIt()
 
         val partyHints = List("adminTF", "providerTF", "aliceTF", "bobTF", "hydrozoaTF")
         val setup =
             for
                 container <- cantonContainer
-                port <- Resource.eval(
-                  IO.blocking(container.mappedPort(CantonContainer.LedgerApiPort))
-                )
+                port <- Resource.eval(portOf(container))
                 parties <- Resource.eval(
                   IO.blocking(CantonParties.allocate("localhost", port, partyHints))
                 )

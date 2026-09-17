@@ -1,13 +1,10 @@
 package tokenstandard.it
 
 import cats.effect.IO
-import cats.effect.Resource
 import cats.effect.testing.scalatest.AsyncIOSpec
-import com.dimafeng.testcontainers.GenericContainer
 import daml.splice.api.token.holdingv2.Account
 import org.scalatest.funsuite.AsyncFunSuite
 import tokenstandard.it.CantonTestTokenOps.*
-import tokenstandard.ledger.LedgerClientCanton
 import tokenstandard.registry.service.*
 import tokenstandard.registry.service.CtxValue.CtxContractId
 import tokenstandard.registry.service.CtxValue.CtxList
@@ -27,29 +24,14 @@ import scala.jdk.OptionConverters.*
   * `AccountConfig` (the authorizer's config is absent → dropped, `accountConfigs` = empty list);
   * the full exercise-acceptance lives in [[CantonConformanceProperties]] (P5).
   */
-class CantonRegistryAcceptanceSpec extends AsyncFunSuite, AsyncIOSpec:
-
-    /** The Canton container: started on acquire, stopped on release. */
-    private val cantonContainer: Resource[IO, GenericContainer] =
-        Resource.make(IO.blocking { val c = CantonContainer(); c.start(); c })(c =>
-            IO.blocking(c.stop())
-        )
-
-    /** A connected Ledger-API client, closed on release. */
-    private def ledgerClient(host: String, port: Int): Resource[IO, LedgerClientCanton] =
-        Resource.make(IO.blocking(LedgerClientCanton.connect(host, port)))(l =>
-            IO.blocking(l.close())
-        )
+class CantonRegistryAcceptanceSpec extends AsyncFunSuite, AsyncIOSpec, CantonItFixture:
 
     test("registry assembles an allocation-factory context from the real Canton ACS"):
-        assume(
-          sys.env.get("CANTON_IT").contains("1"),
-          "set CANTON_IT=1 to run Canton integration tests"
-        )
+        requireCantonIt()
 
         cantonContainer
             .use { container =>
-                IO.blocking(container.mappedPort(CantonContainer.LedgerApiPort)).flatMap { port =>
+                portOf(container).flatMap { port =>
                     ledgerClient("localhost", port).use { ledger =>
                         for
                             admin <- IO.blocking(

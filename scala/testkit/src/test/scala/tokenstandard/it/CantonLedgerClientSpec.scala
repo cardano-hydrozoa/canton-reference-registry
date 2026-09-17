@@ -4,7 +4,6 @@ import cats.effect.Clock
 import cats.effect.IO
 import cats.effect.Resource
 import cats.effect.testing.scalatest.AsyncIOSpec
-import com.dimafeng.testcontainers.GenericContainer
 import daml.splice.api.token.allocationinstructionv2.AllocationFactory
 import org.scalatest.funsuite.AsyncFunSuite
 import tokenstandard.PartyId
@@ -30,32 +29,15 @@ import tokenstandard.registry.service.RegistryService
   * `activeAllocations`, and the balance shift. Gated on `CANTON_IT=1` (see [[CantonSmokeSpec]] for
   * the sandbox run recipe).
   */
-class CantonLedgerClientSpec extends AsyncFunSuite, AsyncIOSpec:
-
-    private val cantonContainer: Resource[IO, GenericContainer] =
-        Resource.make(IO.blocking { val c = CantonContainer(); c.start(); c })(c =>
-            IO.blocking(c.stop())
-        )
-
-    private def ledgerClient(host: String, port: Int): Resource[IO, LedgerClientCanton] =
-        Resource.make(IO.blocking(LedgerClientCanton.connect(host, port)))(l =>
-            IO.blocking(l.close())
-        )
-
-    private def run[A](c: CantonM[A]): IO[A] = c.value.flatMap(IO.fromEither)
+class CantonLedgerClientSpec extends AsyncFunSuite, AsyncIOSpec, CantonItFixture:
 
     test("LedgerClient trait: mint → balances/holdings → generic allocate → typed result"):
-        assume(
-          sys.env.get("CANTON_IT").contains("1"),
-          "set CANTON_IT=1 to run Canton integration tests"
-        )
+        requireCantonIt()
 
         val setup =
             for
                 container <- cantonContainer
-                port <- Resource.eval(
-                  IO.blocking(container.mappedPort(CantonContainer.LedgerApiPort))
-                )
+                port <- Resource.eval(portOf(container))
                 parties <- Resource.eval(
                   IO.blocking(CantonParties.allocate("localhost", port, List("adminLC", "ownerLC")))
                 )
