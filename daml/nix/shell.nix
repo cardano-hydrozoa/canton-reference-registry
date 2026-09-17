@@ -7,6 +7,8 @@
 pkgs.mkShellNoCC {
   JAVA_HOME = "${pkgs.jdk21.home}";
   JAVA_OPTS = "-Xmx4g -Xss512m -XX:+UseG1GC";
+  # Lay down the pinned vendored DARs / sources / OpenAPI specs (see nix/vendored.nix).
+  shellHook = "${pkgs.bash}/bin/bash ${./link-vendored.sh}";
   # Fixes bash prompt/autocomplete in subshells under `nix develop`/direnv.
   packages = with pkgs; [
     canton # Digital Asset Canton open-source runtime (nodes + console)
