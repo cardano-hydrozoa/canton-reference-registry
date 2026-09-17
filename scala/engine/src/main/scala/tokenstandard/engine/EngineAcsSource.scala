@@ -4,6 +4,7 @@ import cats.data.StateT
 import daml.splice.api.token.holdingv2.Account
 import daml.splice.testing.tokens.testtokenv2.TokenRules
 import daml.splice.testing.tokens.testtokenv2.accountconfig.AccountConfig
+import daml.splice.testing.tokens.testtokenv2.allocation.TokenAllocationInstructionV2
 import daml.splice.testing.tokens.testtokenv2.allocation.TokenAllocationV2
 import daml.splice.testing.tokens.testtokenv2.holding.Token
 import tokenstandard.PartyId
@@ -70,9 +71,21 @@ final class EngineAcsSource(engine: DamlEngine, admin: PartyId) extends AcsSourc
                 case Nil          => Right(holdingCids.distinct.map(disclosure))
         }
 
-    // Lifecycle-instruction reads: not exercised by the treasury / swap flows.
+    /** The authorizer account of a pending `TokenAllocationInstructionV2` by cid — what the
+      * allocation-instruction accept/withdraw context is assembled for.
+      */
     def allocationInstruction(cid: Cid): RegEngineM[Account] =
-        StateT.liftF(Left(Error.NotImplemented("EngineAcsSource.allocationInstruction")))
+        StateT.inspectF { store =>
+            engine
+                .active(store, TokenAllocationInstructionV2.TEMPLATE_ID)
+                .collectFirst { case (c, v) if c == cid.value => v }
+                .map(v =>
+                    TokenAllocationInstructionV2.valueDecoder().decode(v).allocation.authorizer
+                )
+                .toRight(Error.ContractNotFound(cid.value))
+        }
+
+    // Transfer-instruction reads: not exercised by the allocation-lifecycle PoC.
     def transferInstruction(cid: Cid): RegEngineM[TransferDetails] =
         StateT.liftF(Left(Error.NotImplemented("EngineAcsSource.transferInstruction")))
 
