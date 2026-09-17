@@ -1,4 +1,4 @@
-package tokenstandard.it
+package tokenstandard.registry.service
 
 import cats.Monad
 import cats.effect.IO
@@ -14,7 +14,6 @@ import tokenstandard.PartyId
 import tokenstandard.ledger.CantonM
 import tokenstandard.ledger.LedgerClientCanton
 import tokenstandard.registry.RegistryApi
-import tokenstandard.registry.service.*
 
 import scala.jdk.CollectionConverters.*
 

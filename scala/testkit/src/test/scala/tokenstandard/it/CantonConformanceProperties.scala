@@ -24,6 +24,7 @@ import tokenstandard.TokenStandardHelpers.basicAccount
 import tokenstandard.it.CantonTestTokenOps.*
 import tokenstandard.ledger.LedgerClientCanton
 import tokenstandard.registry.RegistryApi
+import tokenstandard.registry.service.AcsSourceCanton
 import tokenstandard.registry.service.LocalRegistryApi
 import tokenstandard.registry.service.RegistryMetadata
 import tokenstandard.registry.service.RegistryService
