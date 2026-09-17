@@ -248,7 +248,7 @@ lazy val impl = (project in file("impl"))
 lazy val testkit = (project in file("testkit"))
     // test->test: the treasury flow demos (TreasuryFlow/CrossRegistrySwapFlow) live in impl's test
     // scope; the specs that exercise them (with testkit's own doubles) are here.
-    .dependsOn(api, impl % "compile->compile;test->test", engine)
+    .dependsOn(api, impl % "compile->compile;test->test", engine, testkitIt)
     .settings(
       name := "registry-testkit",
       scalacOptions ++= commonScalacOptions,
@@ -308,8 +308,38 @@ lazy val engine = (project in file("engine"))
       }.taskValue,
     )
 
+// The live-Canton integration harness (tokenstandard.it): boot a Canton container, allocate
+// parties, deploy TestTokenV2 + mint holdings. A consumable module (src/main) so a consumer's
+// integration tests can stand up the reference registry against a real ledger. Isolated from base
+// `testkit` so its testcontainers dependency and bundled DARs stay off consumers that only want the
+// doubles. The reference impls it drives (LedgerClientCanton/AcsSourceCanton/HTTP registry) are in
+// `impl`.
+lazy val testkitIt = (project in file("testkit-it"))
+    .dependsOn(impl)
+    .settings(
+      name := "registry-testkit-it",
+      scalacOptions ++= commonScalacOptions,
+      libraryDependencies += "com.dimafeng" %% "testcontainers-scala-core" % testcontainersV,
+      // Bundle the vendored DARs (mounted into the container from the classpath) + the canton/
+      // node config, so a consumer needs nothing on disk. Same shape as `engine`.
+      Compile / resourceGenerators += Def.task {
+          val srcDir =
+              (ThisBuild / baseDirectory).value.getParentFile / "daml" / "dars" / "vendored"
+          val outDir = (Compile / resourceManaged).value / "dars"
+          IO.createDirectory(outDir)
+          val copied = (srcDir * "*.dar").get().map { d =>
+              val target = outDir / d.getName
+              IO.copyFile(d.toPath.toRealPath().toFile, target)
+              target
+          }
+          val index = outDir / "index.txt"
+          IO.write(index, copied.map(_.getName).sorted.mkString("\n"))
+          copied :+ index
+      }.taskValue,
+    )
+
 lazy val root = (project in file("."))
-    .aggregate(api, impl, engine, testkit)
+    .aggregate(api, impl, engine, testkit, testkitIt)
     .settings(
       name := "daml-scratch-scala",
       publish / skip := true,

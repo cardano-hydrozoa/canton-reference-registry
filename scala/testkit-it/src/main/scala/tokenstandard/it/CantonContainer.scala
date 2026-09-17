@@ -4,15 +4,13 @@ import com.dimafeng.testcontainers.GenericContainer
 import org.testcontainers.containers.wait.strategy.Wait
 import org.testcontainers.utility.MountableFile
 
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
 import java.time.Duration
-import scala.jdk.CollectionConverters.*
 
 /** A single-node Canton (cn-quickstart's Splice image) for integration tests: boots the daemon with
   * our in-memory topology (`app.conf`) and bootstrap (`bootstrap.sc`), uploads the vendored
-  * token-standard + TestTokenV2 DARs, and exposes the Ledger API. See `src/test/resources/canton/`.
+  * token-standard + TestTokenV2 DARs, and exposes the Ledger API. Config and DARs ship as classpath
+  * resources of this module (see `src/main/resources/canton/` and the `/dars/` bundle), so a
+  * consumer needs nothing on disk.
   */
 object CantonContainer:
 
@@ -22,19 +20,19 @@ object CantonContainer:
     /** Ledger API port from app.conf (participant1.ledger-api.port). */
     val LedgerApiPort = 5011
 
-    /** Vendored DARs live in the sibling daml/ project; tests run with cwd = scala/. Each entry is
-      * a symlink into the nix store (daml/nix/link-vendored.sh) — resolve to the real path when
-      * mounting: testcontainers' MountableFile can't tar a symlink entry, and /nix/store isn't
-      * visible inside the container.
+    /** DAR resource names, from the bundled `/dars/index.txt` (mounted straight from the classpath
+      * — testcontainers extracts each resource to a temp file for the container).
       */
-    private def vendoredDars: List[Path] =
-        val dir = Paths.get(sys.props("user.dir"), "..", "daml", "dars", "vendored").normalize
-        val stream = Files.list(dir)
-        val dars =
-            try stream.iterator.asScala.filter(_.toString.endsWith(".dar")).toList.sorted
-            finally stream.close()
-        require(dars.nonEmpty, s"no vendored DARs in $dir — enter the devShell to link them")
-        dars
+    private def darNames: List[String] =
+        val is = Option(getClass.getResourceAsStream("/dars/index.txt"))
+            .getOrElse(sys.error("bundled /dars/index.txt not found on the classpath"))
+        try
+            scala.io.Source
+                .fromInputStream(is)(scala.io.Codec.UTF8)
+                .getLines()
+                .filter(_.nonEmpty)
+                .toList
+        finally is.close()
 
     def apply(): GenericContainer =
         GenericContainer(
@@ -52,10 +50,10 @@ object CantonContainer:
               MountableFile.forClasspathResource("canton/bootstrap.sc"),
               "/app/bootstrap.sc"
             )
-            vendoredDars.foreach { p =>
+            darNames.foreach { name =>
                 c.withCopyFileToContainer(
-                  MountableFile.forHostPath(p.toRealPath()),
-                  s"/app/dars/${p.getFileName}"
+                  MountableFile.forClasspathResource(s"dars/$name"),
+                  s"/app/dars/$name"
                 )
             }
             ()

@@ -13,11 +13,13 @@ registry over HTTP for integration.
 | `api` | `registry-api` | the traits + generated types: `RegistryApi`, `LedgerClient`, `Submission`, the Daml codegen (`daml.splice.api.token.*`) and OpenAPI DTOs | bindings-java (gRPC) |
 | `impl` | `registry-impl` | reference impls: pure `Assemble`/`RegistryService`, `LocalRegistryApi`, the http4s server (`RegistryRoutes`) + client (`RegistryBackendHttp`), and the live-Canton adapters `LedgerClientCanton` + `AcsSourceCanton` | http4s, circe |
 | `engine` | `registry-engine` | **the fast reference tier**: `EngineLedger` (a `LedgerClient` backed by the real Daml interpreter, in-process, no container) + `EngineRegistry` + `DamlEngine` | **daml-lf-engine 3.5.15** + the ~21 vendored DARs (bundled as resources) |
+| `testkit-it` | `registry-testkit-it` | **the live-Canton harness**: `CantonContainer` (boots the node, DARs + config bundled), `CantonParties` (allocate), `CantonTestTokenOps` (deploy TestTokenV2 + mint) | testcontainers + the bundled DARs |
 | `testkit` | `registry-testkit` | reusable test doubles: `MockAcsSource`, the `Cip0112Conformance` property suite | scalacheck |
 
-`engine` and `impl` both `dependsOn(api)`; `engine dependsOn impl`. The heavy engine
-dependency and the bundled DARs live **only** in `engine`, so depending on `impl` (HTTP
-registry) or `api` (traits) alone stays light.
+`impl`/`engine`/`testkit-it` all `dependsOn(api)` (`engine`/`testkit-it dependsOn impl`).
+Each heavy concern is isolated in its own module: the engine + DARs in `engine`,
+testcontainers + the container's DARs in `testkit-it`. Depending on `impl` (HTTP registry)
+or `api` (traits) alone stays light.
 
 ## How Hydrozoa depends on it
 
@@ -34,9 +36,12 @@ lazy val myApp = project.dependsOn(ProjectRef(cantonReg, "api"))
 // fast tests against the engine reference tier:
 lazy val myTests = project.dependsOn(ProjectRef(cantonReg, "engine"))
 
-// integration tests against the HTTP reference registry + Canton adapters:
-//   .dependsOn(ProjectRef(cantonReg, "impl"))
+// integration tests against the HTTP reference registry over live Canton:
+//   .dependsOn(ProjectRef(cantonReg, "impl"), ProjectRef(cantonReg, "testkitIt"))
 ```
+
+(sbt project ids are the `lazy val` names — `api`, `impl`, `engine`, `testkitIt` — not the
+`registry-*` artifact names.)
 
 (Later, once open-sourced, the same modules can be pulled from JitPack as
 `tokenstandard:registry-{api,impl,engine}` coordinates instead of `ProjectRef`.)
@@ -87,16 +92,26 @@ The reference registry served over HTTP + the Canton adapters are all in `impl` 
 `RegistryRoutes` (http4s), consumed by `RegistryBackendHttp`, over `LedgerClientCanton`
 (raw gRPC). Effect type on the live path: `CantonM = EitherT[IO, Error, *]`.
 
-Worked example (the exact wiring): `testkit/src/test/scala/tokenstandard/it/CantonHttpTreasuryFlowSpec.scala`.
+The Canton harness — `CantonContainer` (boots the node; DARs + config bundled as
+resources), `CantonParties` (allocate parties), `CantonTestTokenOps` (`createTokenRules`
++ `mint` for TestTokenV2) — is in `testkit-it` (src/main), so it is consumable: your
+integration test boots a container and mints holdings with no repo files on disk. Sketch:
 
-> **Gap to be aware of:** the Canton *test harness* — booting a container
-> (`CantonContainer`), allocating parties (`CantonParties`), and minting via TestTokenV2
-> (`CantonTestTokenOps`) — currently lives in `testkit`'s **test** scope, so it is not yet
-> a consumable artifact. For Hydrozoa integration tests you either (a) provide your own
-> Canton harness and use only the `impl` reference impls, or (b) we promote those three
-> helpers to `testkit/src/main` (small, but pulls testcontainers into testkit's compile
-> scope — do it in a dedicated `testkit-it` module if that matters). This is the main
-> remaining step for a turnkey integration path.
+```scala
+import tokenstandard.it.*
+import tokenstandard.it.CantonTestTokenOps.*
+import tokenstandard.ledger.LedgerClientCanton
+import tokenstandard.registry.service.*
+
+val container = CantonContainer()                      // testcontainers Resource in the specs
+val port      = container.mappedPort(CantonContainer.LedgerApiPort)
+val parties   = CantonParties.allocate("localhost", port, List("admin", "alice"))
+val ledger    = LedgerClientCanton.connect("localhost", port)
+// serve the reference registry over HTTP (RegistryRoutes) backed by AcsSourceCanton,
+// consume it with RegistryBackendHttp, run your flow — see the worked example below.
+```
+
+Worked example (the exact end-to-end wiring): `testkit/src/test/scala/tokenstandard/it/CantonHttpTreasuryFlowSpec.scala`, with the reusable fixtures in `CantonItFixture.scala`.
 
 ## Gotchas / notes
 
