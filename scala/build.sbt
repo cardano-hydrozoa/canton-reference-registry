@@ -5,12 +5,12 @@ ThisBuild / scalaVersion := "3.3.7" // LTS; matches the hydrozoa repo
 // under `com.github.<user>.<repo>/...`. So the groupId must be the full `com.github.<user>.<repo>`
 // (NOT just `com.github.<user>`): each module then publishes at exactly the path JitPack serves, and
 // a module's POM lists its inter-module deps under the same group so they resolve too. `version` must
-// match the release tag — to cut `v0.1.2`, keep `version := "0.1.2"`, commit, then tag `v0.1.2`.
+// match the release tag — to cut `v0.1.3`, keep `version := "0.1.3"`, commit, then tag `v0.1.3`.
 // Consumers pull a module by its artifactId (the `name` below) with `%%` (the real `_3` artifact):
 //   resolvers += "jitpack" at "https://jitpack.io"
-//   "com.github.cardano-hydrozoa.canton-reference-registry" %% "registry-engine" % "0.1.2"
+//   "com.github.cardano-hydrozoa.canton-reference-registry" %% "registry-engine" % "0.1.3"
 ThisBuild / organization := "com.github.cardano-hydrozoa.canton-reference-registry"
-ThisBuild / version := "0.1.2"
+ThisBuild / version := "0.1.3"
 
 // scalafix reads SemanticDB emitted by the Scala 3 compiler; -Wunused:all backs
 // OrganizeImports' removeUnused.
@@ -30,10 +30,15 @@ val http4sV = "0.23.26"
 // openapi-generator-cli: generates the CIP-0112 registry wire types (DTOs) from the vendored specs.
 val openapiGenV = "7.25.0"
 val scalacheckV = "1.18.0"
+// The Daml Java codegen. DPM ships this exact version as a component; the identical self-contained
+// jar is on Maven Central (com.daml:codegen-java), used as a build-tool fallback when the DPM cache
+// is absent (e.g. JitPack, which has no nix/DPM). Keep aligned with the DARs / bindings-java.
+val damlCodegenV = "3.4.11"
 
-// Tool-only Ivy configuration so the openapi-generator CLI (a fat jar with a large dep tree) is
-// resolved for the build's source generator but never leaks onto the compile/runtime classpath.
+// Tool-only Ivy configurations so the openapi-generator CLI and the Daml codegen jar are resolved
+// for the build's source generators but never leak onto the compile/runtime classpath.
 lazy val OpenApiCodegen = config("openapiCodegen").hide
+lazy val DamlCodegen = config("damlCodegen").hide
 
 // Token-standard V2 DARs the codegen consumes (live in the sibling daml/ project). Order matters
 // only for readability; the codegen dedups shared daml-prim/stdlib modules across them.
@@ -64,22 +69,16 @@ lazy val useFixedScalaCheck: Setting[Seq[TestFramework]] =
     testFrameworks := testFrameworks.value.filterNot(_ == TestFrameworks.ScalaCheck) :+
         new TestFramework("test.ScalaCheckFrameworkFixed")
 
-// Locate the DPM-shipped Java codegen jar. DPM installs it as a component under ~/.dpm rather than
-// exposing a `dpm codegen` subcommand, so we resolve the jar directly: $DAML_CODEGEN_JAR wins,
-// else the newest version under the DPM component cache. Populated by running `dpm build` (or any
-// dpm command) in ../daml at least once. Plain def (not a taskKey) — a File-typed task trips sbt
-// 2's output caching.
-def resolveDamlCodegenJar(): File =
-    sys.env.get("DAML_CODEGEN_JAR").map(file).filter(_.exists).getOrElse {
+// Locate the DPM-shipped Java codegen jar, if present. DPM installs it as a component under ~/.dpm
+// rather than exposing a `dpm codegen` subcommand, so we resolve the jar directly: $DAML_CODEGEN_JAR
+// wins, else the newest version under the DPM component cache. Returns None when neither exists (a
+// non-DPM build such as JitPack), where the task falls back to the Maven-resolved DamlCodegen jar.
+// Plain def (not a taskKey) — a File-typed task trips sbt 2's output caching.
+def resolveDamlCodegenJar(): Option[File] =
+    sys.env.get("DAML_CODEGEN_JAR").map(file).filter(_.exists).orElse {
         val cacheRoot =
             file(sys.props("user.home")) / ".dpm" / "cache" / "components" / "codegen-java"
-        val jars = (cacheRoot ** "binary.jar").get().sortBy(_.getParentFile.getName)
-        jars.lastOption.getOrElse {
-            sys.error(
-              "Daml Java codegen jar not found under ~/.dpm/cache/components/codegen-java. " +
-                  "Run `dpm build` in ../daml once to install it, or set DAML_CODEGEN_JAR."
-            )
-        }
+        (cacheRoot ** "binary.jar").get().sortBy(_.getParentFile.getName).lastOption
     }
 
 // The interface project: the two seams a consumer needs — the CIP-0112 RegistryApi trait
@@ -90,12 +89,13 @@ lazy val api = (project in file("api"))
     .settings(
       name := "registry-api",
       scalacOptions ++= commonScalacOptions,
-      ivyConfigurations += OpenApiCodegen,
+      ivyConfigurations ++= Seq(OpenApiCodegen, DamlCodegen),
       libraryDependencies ++= Seq(
         "com.daml" % "bindings-java" % bindingsJavaV,
         "org.typelevel" %% "cats-core" % catsCoreV, // generated DTO codecs (cats.syntax.functor)
         "io.circe" %% "circe-core" % circeV, // generated DTO codecs
         "org.openapitools" % "openapi-generator-cli" % openapiGenV % OpenApiCodegen,
+        "com.daml" % "codegen-java" % damlCodegenV % DamlCodegen, // Maven fallback when no DPM cache
       ),
       resolvers += "jitpack" at "https://jitpack.io",
       registryOpenApiSpecs := Seq(
@@ -122,7 +122,22 @@ lazy val api = (project in file("api"))
               val darDir =
                   (ThisBuild / baseDirectory).value.getParentFile / "daml" / "dars" / "vendored"
               val dars = tokenStandardDars.value.map(darDir / _)
-              val jar = resolveDamlCodegenJar()
+              // DPM component jar if present (local dev), else the identical jar from Maven Central.
+              // The two expose different entrypoints: DPM's `CodegenMain` is a multi-language
+              // dispatcher that needs a `java` backend subcommand; Maven's `StandaloneMain` IS the
+              // Java codegen, so it takes the DAR args directly (no subcommand).
+              val (jar, backendArgs) = resolveDamlCodegenJar() match {
+                  case Some(dpmJar) => (dpmJar, Seq("java"))
+                  case None =>
+                      val mvn = update.value
+                          .select(configurationFilter(DamlCodegen.name))
+                          .find(_.getName.startsWith("codegen-java"))
+                          .getOrElse(sys.error(
+                            "Daml codegen jar not found: no $DAML_CODEGEN_JAR, no DPM cache, and " +
+                                "the DamlCodegen Ivy config resolved nothing."
+                          ))
+                      (mvn, Seq.empty[String])
+              }
               val missing = dars.filterNot(_.exists)
               if (missing.nonEmpty)
                   sys.error(s"Missing DARs (build them in ../daml): ${missing.mkString(", ")}")
@@ -135,7 +150,7 @@ lazy val api = (project in file("api"))
                   IO.delete(outDir)
                   IO.createDirectory(outDir)
                   // Single "daml" prefix → clean daml.splice.api.token.* packages, no cross-DAR collisions.
-                  val args = Seq("java", "-jar", jar.getAbsolutePath, "java") ++
+                  val args = Seq("java", "-jar", jar.getAbsolutePath) ++ backendArgs ++
                       dars.map(d => s"${d.getAbsolutePath}=daml") ++
                       Seq("-o", outDir.getAbsolutePath, "-V", "1")
                   log.info(s"Daml Java codegen → $outDir")
