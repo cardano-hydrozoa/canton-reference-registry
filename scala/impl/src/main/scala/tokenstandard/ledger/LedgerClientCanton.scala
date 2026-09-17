@@ -2,7 +2,14 @@ package tokenstandard.ledger
 
 import cats.data.EitherT
 import cats.effect.IO
-import com.daml.ledger.javaapi.data.ActiveContract
+import com.daml.ledger.api.v2.CommandServiceGrpc
+import com.daml.ledger.api.v2.CommandServiceOuterClass.SubmitAndWaitForTransactionRequest
+import com.daml.ledger.api.v2.CommandServiceOuterClass.SubmitAndWaitRequest
+import com.daml.ledger.api.v2.StateServiceGrpc
+import com.daml.ledger.api.v2.StateServiceOuterClass.ActiveContract as ProtoActiveContract
+import com.daml.ledger.api.v2.StateServiceOuterClass.GetActiveContractsRequest
+import com.daml.ledger.api.v2.StateServiceOuterClass.GetActiveContractsResponse.ContractEntryCase
+import com.daml.ledger.api.v2.StateServiceOuterClass.GetLedgerEndRequest
 import com.daml.ledger.javaapi.data.CommandsSubmission
 import com.daml.ledger.javaapi.data.ContractFilter
 import com.daml.ledger.javaapi.data.CreatedEvent
@@ -17,12 +24,12 @@ import com.daml.ledger.javaapi.data.TransactionFormat
 import com.daml.ledger.javaapi.data.TransactionShape
 import com.daml.ledger.javaapi.data.codegen.HasCommands
 import com.daml.ledger.javaapi.data.codegen.Update
-import com.daml.ledger.rxjava.DamlLedgerClient
 import com.google.protobuf.ByteString
 import daml.splice.api.token.allocationv2.Allocation
 import daml.splice.api.token.holdingv2.Holding
 import daml.splice.api.token.holdingv2.InstrumentId
-import io.reactivex.Single
+import io.grpc.ManagedChannel
+import io.grpc.netty.NettyChannelBuilder
 import tokenstandard.PartyId
 import tokenstandard.registry.RegistryApi.Error
 
@@ -30,25 +37,31 @@ import java.util.Base64
 import java.util.Optional
 import java.util.UUID
 import scala.jdk.CollectionConverters.*
-import scala.jdk.OptionConverters.*
 
 /** Canton effect: IO with the domain error in an Either base, so the flow's `MonadError[F, Error]`
   * is satisfied (plain IO only has `MonadError[IO, Throwable]`).
   */
 type CantonM[A] = EitherT[IO, Error, A]
 
-/** [[LedgerClient]] against a live Canton participant. Wraps the rxjava `DamlLedgerClient`; each
-  * call runs the blocking rx call on IO and maps failures to `Error`.
+/** [[LedgerClient]] against a live Canton participant, driven over the raw gRPC Ledger API v2
+  * (`CommandService` + `StateService` blocking stubs on a Netty channel) rather than the
+  * `bindings-rxjava` `DamlLedgerClient`. We build the request/response values with the
+  * `javaapi.data` types we already use and cross the gRPC boundary with their own `.toProto()` /
+  * `.fromProto()` — so the value logic is identical; only the transport changed. Each blocking call
+  * runs on IO and maps failures to `Error`.
   *
   * [[submit]] sends the whole `Submission` (one or many commands) as one `CommandsSubmission` via
   * `SubmitAndWaitForTransaction` with a `LEDGER_EFFECTS`-shaped `TransactionFormat` — the shape
   * that carries the root `ExercisedEvent`s with the choice results — and feeds each root event
-  * through its codegen update's own decoder/continuation. The rxjava `submitAndWaitForResult`
-  * convenience is unusable here: for exercise updates it ignores its `TransactionFormat` and
-  * delegates to `SubmitAndWaitForTransactionTree`, which this Canton build does not implement.
+  * through its codegen update's own decoder/continuation. (`SubmitAndWaitForTransactionTree` — what
+  * the rxjava `submitAndWaitForResult` convenience delegated to for exercises — is not implemented
+  * on this Canton build; `LEDGER_EFFECTS` on the plain transaction endpoint is the way in.)
   */
-final class LedgerClientCanton private (client: DamlLedgerClient, userId: String)
+final class LedgerClientCanton private (channel: ManagedChannel, userId: String)
     extends LedgerClient[CantonM]:
+
+    private val commandStub = CommandServiceGrpc.newBlockingStub(channel)
+    private val stateStub = StateServiceGrpc.newBlockingStub(channel)
 
     def submit[A](
         actAs: List[PartyId],
@@ -80,8 +93,14 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
                     .withDisclosedContracts(disclosures.asJava)
                 val cmds =
                     if readAs.isEmpty then base else base.withReadAs(readAs.map(_.value).asJava)
+                val request = SubmitAndWaitForTransactionRequest
+                    .newBuilder()
+                    .setCommands(cmds.toProto)
+                    .setTransactionFormat(format.toProto)
+                    .build()
                 for
-                    tx <- single(client.getCommandClient.submitAndWaitForTransaction(cmds, format))
+                    resp <- blocking(commandStub.submitAndWaitForTransaction(request))
+                    tx = Transaction.fromProto(resp.getTransaction)
                     events <- EitherT.fromEither[IO](
                       rootExercisedEvents(tx, submission.commands.size)
                     )
@@ -169,50 +188,57 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
 
     // --- generic primitives -----------------------------------------------------
 
-    /** Typed ACS query for a template/interface, as seen by `readAs`. */
+    /** Typed ACS query for a template/interface, as seen by `readAs`. `ContractFilter.eventFormat`
+      * carries the companion's template/interface selection; each active `CreatedEvent` decodes
+      * back through `filter.toContract`.
+      */
     def activeContractsOf[Ct](filter: ContractFilter[Ct], readAs: PartyId): CantonM[List[Ct]] =
-        for
-            end <- single(client.getStateClient.getLedgerEnd)
-            batches <- blocking(
-              client.getStateClient
-                  .getActiveContracts(filter, Set(readAs.value).asJava, false, end)
-                  .blockingIterable()
-                  .asScala
-                  .toList
-            )
-        yield batches.flatMap(_.activeContracts.asScala.toList)
+        activeContracts(filter.eventFormat(Optional.of(Set(readAs.value).asJava)))
+            .map(_.map(ac => filter.toContract(CreatedEvent.fromProto(ac.getCreatedEvent))))
 
     /** ACS query that also returns each contract's disclosure metadata: the decoded contract plus
       * the `createdEventBlob` (base64), fully-qualified template id, contract id and synchronizer
-      * id — i.e. everything needed to build a wire `DisclosedContract`. Uses the raw `EventFormat`
-      * overload with `includeCreatedEventBlob`, which the typed overload does not expose.
+      * id — i.e. everything needed to build a wire `DisclosedContract`. Sets
+      * `includeCreatedEventBlob` on the filter (an interface-filtered read carries no usable blob).
       */
     def activeWithDisclosure[Ct](
         filter: ContractFilter[Ct],
         readAs: PartyId,
     ): CantonM[List[LedgerClientCanton.Disclosed[Ct]]] =
-        val fmt =
-            filter
-                .withIncludeCreatedEventBlob(true)
-                .eventFormat(Optional.of(Set(readAs.value).asJava))
-        for
-            end <- single(client.getStateClient.getLedgerEnd)
-            responses <- blocking(
-              client.getStateClient.getActiveContracts(fmt, end).blockingIterable().asScala.toList
+        activeContracts(
+          filter
+              .withIncludeCreatedEventBlob(true)
+              .eventFormat(Optional.of(Set(readAs.value).asJava))
+        ).map(_.map { ac =>
+            val ce: CreatedEvent = CreatedEvent.fromProto(ac.getCreatedEvent)
+            LedgerClientCanton.Disclosed(
+              contract = filter.toContract(ce),
+              contractId = ce.getContractId,
+              templateId = LedgerClientCanton.identifierString(ce.getTemplateId),
+              createdEventBlobBase64 =
+                  Base64.getEncoder.encodeToString(ce.getCreatedEventBlob.toByteArray),
+              synchronizerId = ac.getSynchronizerId,
             )
-        yield responses.flatMap { r =>
-            r.getContractEntry.toScala.collect { case ac: ActiveContract =>
-                val ce: CreatedEvent = ac.getCreatedEvent
-                LedgerClientCanton.Disclosed(
-                  contract = filter.toContract(ce),
-                  contractId = ce.getContractId,
-                  templateId = LedgerClientCanton.identifierString(ce.getTemplateId),
-                  createdEventBlobBase64 =
-                      Base64.getEncoder.encodeToString(ce.getCreatedEventBlob.toByteArray),
-                  synchronizerId = ac.getSynchronizerId,
-                )
-            }
-        }
+        })
+
+    /** The active contracts matching `eventFormat` at the current ledger end. Drains the
+      * `GetActiveContracts` server stream and keeps the `ACTIVE_CONTRACT` entries (the ACS query
+      * can also surface incomplete (un)assigned entries mid-reassignment, which we don't read).
+      */
+    private def activeContracts(eventFormat: EventFormat): CantonM[List[ProtoActiveContract]] =
+        for
+            end <- blocking(
+              stateStub.getLedgerEnd(GetLedgerEndRequest.getDefaultInstance).getOffset
+            )
+            request = GetActiveContractsRequest
+                .newBuilder()
+                .setEventFormat(eventFormat.toProto)
+                .setActiveAtOffset(end)
+                .build()
+            responses <- blocking(stateStub.getActiveContracts(request).asScala.toList)
+        yield responses
+            .filter(_.getContractEntryCase == ContractEntryCase.ACTIVE_CONTRACT)
+            .map(_.getActiveContract)
 
     /** Submit `cmds` as `actAs` and wait for completion, discarding the result. */
     def submitAndWait(
@@ -224,9 +250,8 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
             .create(userId, UUID.randomUUID().toString, Optional.empty(), cmds.asJava)
             .withActAs(actAs.value)
             .withDisclosedContracts(disclosures.asJava)
-        single(client.getCommandClient.submitAndWait(submission)).map(_ => ())
-
-    private def single[A](s: => Single[A]): CantonM[A] = blocking(s.blockingGet())
+        val request = SubmitAndWaitRequest.newBuilder().setCommands(submission.toProto).build()
+        blocking(commandStub.submitAndWait(request)).map(_ => ())
 
     private def blocking[A](a: => A): CantonM[A] =
         EitherT(
@@ -235,7 +260,8 @@ final class LedgerClientCanton private (client: DamlLedgerClient, userId: String
               .map(_.left.map(t => Error.Unexpected(Option(t.getMessage).getOrElse(t.toString))))
         )
 
-    def close(): Unit = client.close()
+    def close(): Unit =
+        val _ = channel.shutdownNow()
 
 object LedgerClientCanton:
     /** A contract read from the ACS together with the data needed to disclose it. */
@@ -269,6 +295,5 @@ object LedgerClientCanton:
             case _ => throw new IllegalArgumentException(s"malformed template id: $s")
 
     def connect(host: String, port: Int, userId: String = "treasury-it"): LedgerClientCanton =
-        val client = DamlLedgerClient.newBuilder(host, port).build()
-        client.connect()
-        new LedgerClientCanton(client, userId)
+        val channel = NettyChannelBuilder.forAddress(host, port).usePlaintext().build()
+        new LedgerClientCanton(channel, userId)

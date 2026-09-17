@@ -53,9 +53,9 @@ final class AcsSourceCanton(ledger: LedgerClientCanton, admin: PartyId) extends 
       * Ledger-API constraints force list-and-filter here (both diverge from the Daml's per-cid
       * fetch): disclosures must come from the template read, not the `Holding` interface — an
       * interface-filtered read carries no usable `createdEventBlob`, which the ledger rejects
-      * (`MISSING_FIELD: DisclosedContract.createdEventBlob`); and rxjava's
-      * `EventQueryService.getEventsByContractId` predates Canton's mandatory `event_format`
-      * (`MISSING_FIELD: event_format`), so there is no usable by-cid fetch.
+      * (`MISSING_FIELD: DisclosedContract.createdEventBlob`); and the `EventQueryService`
+      * `getEventsByContractId` by-cid fetch requires an `event_format` this bindings version does
+      * not send (`MISSING_FIELD: event_format`), so there is no usable by-cid fetch.
       */
     def holdingDisclosures(holdingCids: List[Cid]): IO[List[Disclosure]] =
         val wanted = holdingCids.map(_.value).distinct

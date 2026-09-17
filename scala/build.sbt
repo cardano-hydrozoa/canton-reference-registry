@@ -13,8 +13,6 @@ val catsEffectV = "3.6.3"
 // immutable "snapshot" versions to Maven Central; this is the latest 3.4 line, compatible with
 // the codegen-java 3.4.x component DPM ships. Bump alongside the DARs / codegen.
 val bindingsJavaV = "3.4.0-snapshot.20250626.13943.0.v7067a3a5"
-// gRPC Ledger API client (DamlLedgerClient) for the Java bindings — used by LedgerClientCanton.
-val bindingsRxJavaV = bindingsJavaV
 val scalatestV = "3.2.19"
 val testcontainersV = "0.43.0"
 // HTTP layer for the registry service (server) + the versions the openapi-generator output targets.
@@ -228,8 +226,9 @@ lazy val impl = (project in file("impl"))
       scalacOptions ++= commonScalacOptions,
       libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect" % catsEffectV,
-        // gRPC Ledger API client (DamlLedgerClient) — LedgerClientCanton, the live LedgerClient.
-        "com.daml" % "bindings-rxjava" % bindingsRxJavaV,
+        // gRPC Ledger API v2: LedgerClientCanton drives the CommandService/StateService stubs
+        // (and CantonParties the admin PartyManagementService) directly on a Netty channel. The
+        // stubs + grpc-netty transport are bundled in bindings-java (above), so no rxjava.
         "io.circe" %% "circe-core" % circeV,
         "io.circe" %% "circe-parser" % circeV,
         "org.http4s" %% "http4s-ember-server" % http4sV,

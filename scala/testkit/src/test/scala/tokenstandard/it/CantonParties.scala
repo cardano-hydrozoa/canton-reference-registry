@@ -5,10 +5,9 @@ import com.daml.ledger.api.v2.admin.PartyManagementServiceOuterClass.AllocatePar
 import io.grpc.netty.NettyChannelBuilder
 import tokenstandard.PartyId
 
-/** Party allocation over the Ledger API v2 admin `PartyManagementService`. The rxjava
-  * `DamlLedgerClient` doesn't expose party management, so we use the raw gRPC stub (bundled in
-  * bindings-java) on a plaintext channel. Returns the real, namespaced party ids
-  * (`hint::namespace-hash`) keyed by hint.
+/** Party allocation over the Ledger API v2 admin `PartyManagementService` gRPC stub (bundled in
+  * bindings-java) on a plaintext channel — same raw-gRPC approach as [[LedgerClientCanton]].
+  * Returns the real, namespaced party ids (`hint::namespace-hash`) keyed by hint.
   */
 object CantonParties:
 

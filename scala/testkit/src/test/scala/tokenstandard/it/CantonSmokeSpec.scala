@@ -3,10 +3,12 @@ package tokenstandard.it
 import cats.effect.IO
 import cats.effect.Resource
 import cats.effect.testing.scalatest.AsyncIOSpec
+import com.daml.ledger.api.v2.PackageServiceGrpc
+import com.daml.ledger.api.v2.PackageServiceOuterClass.ListPackagesRequest
 import com.daml.ledger.javaapi.data.ContractFilter
-import com.daml.ledger.rxjava.DamlLedgerClient
 import com.dimafeng.testcontainers.GenericContainer
 import daml.splice.testing.tokens.testtokenv2.TokenRules
+import io.grpc.netty.NettyChannelBuilder
 import org.scalatest.funsuite.AsyncFunSuite
 import tokenstandard.it.CantonTestTokenOps.*
 import tokenstandard.ledger.LedgerClientCanton
@@ -14,7 +16,7 @@ import tokenstandard.ledger.LedgerClientCanton
 import scala.jdk.CollectionConverters.*
 
 /** Foundation smoke test: the cn-quickstart Canton image boots in Docker, uploads our DARs, and is
-  * reachable over the gRPC Ledger API via the Java-bindings `DamlLedgerClient`.
+  * reachable over the raw gRPC Ledger API v2.
   *
   * Gated on `CANTON_IT=1` so the normal `sbt test` loop stays pure/fast (the container pull + boot
   * takes minutes). The gate is read from the sbt server's environment, so start a fresh server with
@@ -37,10 +39,22 @@ class CantonSmokeSpec extends AsyncFunSuite, AsyncIOSpec:
             IO.blocking(c.stop())
         )
 
-    private def rawClient(port: Int): Resource[IO, DamlLedgerClient] =
-        Resource.make(IO.blocking {
-            val c = DamlLedgerClient.newBuilder("localhost", port).build(); c.connect(); c
-        })(c => IO.blocking(c.close()))
+    /** Package ids on the participant, via the raw `PackageService` gRPC stub (short-lived
+      * channel).
+      */
+    private def listPackages(port: Int): IO[List[String]] =
+        IO.blocking {
+            val channel = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
+            try
+                PackageServiceGrpc
+                    .newBlockingStub(channel)
+                    .listPackages(ListPackagesRequest.getDefaultInstance)
+                    .getPackageIdsList
+                    .asScala
+                    .toList
+            finally
+                val _ = channel.shutdownNow()
+        }
 
     private def ledgerClient(port: Int): Resource[IO, LedgerClientCanton] =
         Resource.make(IO.blocking(LedgerClientCanton.connect("localhost", port)))(l =>
@@ -58,16 +72,13 @@ class CantonSmokeSpec extends AsyncFunSuite, AsyncIOSpec:
             for
                 c <- container
                 port <- Resource.eval(IO.blocking(c.mappedPort(CantonContainer.LedgerApiPort)))
-                client <- rawClient(port)
                 ledger <- ledgerClient(port)
-            yield (port, client, ledger)
+            yield (port, ledger)
 
-        setup.use { (port, client, ledger) =>
+        setup.use { (port, ledger) =>
             for
-                packageIds <- IO.blocking(
-                  client.getPackageClient.listPackages().blockingIterable().asScala.toList
-                )
-                // Party allocation over the admin gRPC service (rxjava has no party client).
+                packageIds <- listPackages(port)
+                // Party allocation over the admin PartyManagementService gRPC stub.
                 parties <- IO.blocking(CantonParties.allocate("localhost", port, hints))
                 admin = parties("adminTT2")
                 // Submit + typed ACS read: create the registry's TokenRules as admin, read it back.
