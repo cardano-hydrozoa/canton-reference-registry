@@ -4,7 +4,8 @@
 #
 # JitPack's bundled `sbt` launcher is sbt-1-era and cannot bootstrap sbt 2 (it mis-resolves sbt 2's
 # Scala-3 compiler as `org.scala-lang:scala-compiler`, which does not exist). So we fetch sbt 2.0.1's
-# own launcher and run publishM2 with it.
+# own launcher and run publishM2 with it. `--server` forces the JVM launcher instead of sbt 2's
+# default native `sbtn` client — the prebuilt sbtn needs a newer GLIBC than JitPack's build image.
 #
 # The build reads the vendored splice DARs (daml/dars/vendored/*.dar) and OpenAPI specs
 # (scala/registry-openapi/*.yaml) as codegen/resource inputs; those are committed (not the nix
@@ -12,4 +13,4 @@
 jdk:
   - openjdk21
 install:
-  - curl -fsSL https://github.com/sbt/sbt/releases/download/v2.0.1/sbt-2.0.1.tgz | tar xz -C "$HOME" && cd scala && "$HOME/sbt/bin/sbt" publishM2
+  - curl -fsSL https://github.com/sbt/sbt/releases/download/v2.0.1/sbt-2.0.1.tgz | tar xz -C "$HOME" && cd scala && "$HOME/sbt/bin/sbt" --server publishM2

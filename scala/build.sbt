@@ -5,12 +5,12 @@ ThisBuild / scalaVersion := "3.3.7" // LTS; matches the hydrozoa repo
 // under `com.github.<user>.<repo>/...`. So the groupId must be the full `com.github.<user>.<repo>`
 // (NOT just `com.github.<user>`): each module then publishes at exactly the path JitPack serves, and
 // a module's POM lists its inter-module deps under the same group so they resolve too. `version` must
-// match the release tag — to cut `v0.1.1`, keep `version := "0.1.1"`, commit, then tag `v0.1.1`.
+// match the release tag — to cut `v0.1.2`, keep `version := "0.1.2"`, commit, then tag `v0.1.2`.
 // Consumers pull a module by its artifactId (the `name` below) with `%%` (the real `_3` artifact):
 //   resolvers += "jitpack" at "https://jitpack.io"
-//   "com.github.cardano-hydrozoa.canton-reference-registry" %% "registry-engine" % "0.1.1"
+//   "com.github.cardano-hydrozoa.canton-reference-registry" %% "registry-engine" % "0.1.2"
 ThisBuild / organization := "com.github.cardano-hydrozoa.canton-reference-registry"
-ThisBuild / version := "0.1.1"
+ThisBuild / version := "0.1.2"
 
 // scalafix reads SemanticDB emitted by the Scala 3 compiler; -Wunused:all backs
 // OrganizeImports' removeUnused.
