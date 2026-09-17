@@ -25,7 +25,6 @@ import com.digitalasset.daml.lf.value.ContractIdVersion
 import com.digitalasset.daml.lf.value.Value as Lf
 import tokenstandard.registry.RegistryApi.Error
 
-import java.nio.file.Paths
 import java.time.Instant
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
@@ -253,34 +252,30 @@ object DamlEngine:
       */
     val SuffixBytes: Bytes = Bytes.fromByteArray(Array[Byte](0.toByte))
 
-    /** Load and decode every vendored DAR, build the interpreter. DARs a 3.5 engine can't read are
-      * skipped (none needed for TestTokenV2 are among them); the engine is pinned to the container
-      * LF, so all token-standard DARs decode.
+    /** Load and decode the bundled DARs from the classpath and build the interpreter. The vendored
+      * splice DARs ship as resources under `/dars/` (see this module's `resourceGenerators`),
+      * listed in `/dars/index.txt`, so a consumer needs nothing on disk. DARs a 3.5 engine can't
+      * read are skipped (none needed for TestTokenV2 are among them); the engine is pinned to the
+      * container LF, so all token-standard DARs decode.
       */
     def load(): DamlEngine =
-        val darDir =
-            LazyList
-                .iterate(Paths.get(sys.props("user.dir")).toAbsolutePath)(_.getParent)
-                .takeWhile(_ != null)
-                .map(_.resolve("daml/dars/vendored"))
-                .find(java.nio.file.Files.isDirectory(_))
-                .getOrElse(sys.error("could not locate daml/dars/vendored"))
-        val darFiles =
-            java.nio.file.Files
-                .list(darDir)
-                .iterator()
-                .asScala
-                .map(_.toRealPath())
-                .filter(_.toString.endsWith(".dar"))
-                .toList
-                .sortBy(_.getFileName.toString)
-                .map(_.toFile)
+        val darNames =
+            val is = Option(getClass.getResourceAsStream("/dars/index.txt"))
+                .getOrElse(sys.error("bundled /dars/index.txt not found on the classpath"))
+            try
+                scala.io.Source
+                    .fromInputStream(is)(scala.io.Codec.UTF8)
+                    .getLines()
+                    .filter(_.nonEmpty)
+                    .toList
+            finally is.close()
         val packages: Map[Ref.PackageId, Ast.Package] =
-            darFiles
-                .flatMap(f =>
-                    scala.util.Try(DarDecoder.assertReadArchiveFromFile(f).all).getOrElse(Nil)
-                )
-                .toMap
+            darNames.flatMap { name =>
+                val zis =
+                    new java.util.zip.ZipInputStream(getClass.getResourceAsStream(s"/dars/$name"))
+                try scala.util.Try(DarDecoder.assertReadArchive(name, zis).all).getOrElse(Nil)
+                finally zis.close()
+            }.toMap
         val packageMap = packages.view.mapValues(p => (p.metadata.name, p.metadata.version)).toMap
         // One preferred package id per name (daml-stdlib appears at several versions): highest wins.
         val packagePreference =

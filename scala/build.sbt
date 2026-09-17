@@ -2,6 +2,7 @@ import scala.sys.process.Process
 
 ThisBuild / scalaVersion := "3.3.7" // LTS; matches the hydrozoa repo
 ThisBuild / organization := "tokenstandard"
+ThisBuild / version := "0.1.0-SNAPSHOT" // consumed via sbt ProjectRef today; jitpack coords later
 
 // scalafix reads SemanticDB emitted by the Scala 3 compiler; -Wunused:all backs
 // OrganizeImports' removeUnused.
@@ -247,7 +248,7 @@ lazy val impl = (project in file("impl"))
 lazy val testkit = (project in file("testkit"))
     // test->test: the treasury flow demos (TreasuryFlow/CrossRegistrySwapFlow) live in impl's test
     // scope; the specs that exercise them (with testkit's own doubles) are here.
-    .dependsOn(api, impl % "compile->compile;test->test")
+    .dependsOn(api, impl % "compile->compile;test->test", engine)
     .settings(
       name := "registry-testkit",
       scalacOptions ++= commonScalacOptions,
@@ -264,21 +265,51 @@ lazy val testkit = (project in file("testkit"))
         "org.http4s" %% "http4s-ember-client" % http4sV % Test,
         "com.dimafeng" %% "testcontainers-scala-scalatest" % testcontainersV % Test,
         "org.slf4j" % "slf4j-simple" % "2.0.16" % Test,
-        // The REAL Daml interpreter backing EngineLedger (the in-process reference ledger). Pinned
-        // to the Canton CONTAINER version (3.5.15), NOT the bindings pin — the engine must match
-        // the LF the vendored splice DARs were compiled against. daml-lf-archive (DarDecoder) comes
-        // transitively. Exclude its Scala-2.13 cats/scalacheck (clash with our Scala 3 ones).
-        ("com.daml" % "daml-lf-engine_2.13" % "3.5.15" % Test)
+      ),
+      useFixedScalaCheck, // our ScalaCheck suites (FrameworkSmoke, CantonConformanceProperties)
+    )
+
+// The engine-backed reference ledger + registry (tokenstandard.engine): the REAL Daml interpreter
+// in-process, so a consumer (Hydrozoa) can run its flows against a high-fidelity reference tier with
+// no Canton container. Isolated in its own module so the heavy daml-lf-engine dependency and the
+// bundled DARs stay OFF consumers that only want the api traits, the doubles, or the HTTP registry.
+lazy val engine = (project in file("engine"))
+    .dependsOn(impl)
+    .settings(
+      name := "registry-engine",
+      scalacOptions ++= commonScalacOptions,
+      libraryDependencies ++= Seq(
+        "org.typelevel" %% "cats-core" % catsCoreV, // EngineM = StateT over Either
+        // The REAL Daml interpreter. Pinned to the Canton CONTAINER LF version (3.5.15), NOT the
+        // bindings pin — the engine must match the LF the vendored splice DARs were compiled
+        // against. daml-lf-archive (DarDecoder) comes transitively. Exclude its Scala-2.13
+        // cats/scalacheck (clash with our Scala 3 ones).
+        ("com.daml" % "daml-lf-engine_2.13" % "3.5.15")
             .exclude("org.typelevel", "cats-core_2.13")
             .exclude("org.typelevel", "cats-kernel_2.13")
             .exclude("org.typelevel", "cats-free_2.13")
             .exclude("org.scalacheck", "scalacheck_2.13"),
       ),
-      useFixedScalaCheck, // our ScalaCheck suites (FrameworkSmoke, CantonConformanceProperties)
+      // Bundle the vendored splice DARs as classpath resources under /dars/ (+ an index.txt), so a
+      // consumer needs nothing on disk — `DamlEngine.load` reads them off the classpath.
+      Compile / resourceGenerators += Def.task {
+          val srcDir =
+              (ThisBuild / baseDirectory).value.getParentFile / "daml" / "dars" / "vendored"
+          val outDir = (Compile / resourceManaged).value / "dars"
+          IO.createDirectory(outDir)
+          val copied = (srcDir * "*.dar").get().map { d =>
+              val target = outDir / d.getName
+              IO.copyFile(d.toPath.toRealPath().toFile, target)
+              target
+          }
+          val index = outDir / "index.txt"
+          IO.write(index, copied.map(_.getName).sorted.mkString("\n"))
+          copied :+ index
+      }.taskValue,
     )
 
 lazy val root = (project in file("."))
-    .aggregate(api, impl, testkit)
+    .aggregate(api, impl, engine, testkit)
     .settings(
       name := "daml-scratch-scala",
       publish / skip := true,
